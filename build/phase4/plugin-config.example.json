@@ -1,0 +1,24 @@
+{
+  "pre_execution": [
+    {
+      "name": "permission_check",
+      "handler": "hermes_plugin_bridge:builtin_permission_check"
+    },
+    {
+      "name": "cost_guard",
+      "handler": "hermes_plugin_bridge:builtin_cost_guard"
+    }
+  ],
+  "post_execution": [
+    {
+      "name": "log_execution",
+      "handler": "hermes_plugin_bridge:builtin_log_execution"
+    }
+  ],
+  "error": [
+    {
+      "name": "alert_on_error",
+      "handler": "hermes_plugin_bridge:builtin_alert_on_error"
+    }
+  ]
+}
