@@ -1,0 +1,26 @@
+{
+  "registry_version": "1.0.0",
+  "updated_at": "2026-05-14T12:30:00+08:00",
+  "skills": [
+    {
+      "skill_id": "devops/backup/git-auto-backup",
+      "name": "Git Auto Backup",
+      "name_zh": "Git 自动备份",
+      "version": "1.0.0",
+      "author": "技术开发·工匠长",
+      "description": "自动备份指定目录到远程 Git 仓库。支持增量提交、自动冲突检测、大文件告警和备份完整性校验。",
+      "rating": "B",
+      "score": 88,
+      "source": "hermes-platform",
+      "path": "build/phase1/example-skill.SKILL.md",
+      "tags": [
+        "devops",
+        "backup",
+        "git",
+        "自动化"
+      ],
+      "status": "verified",
+      "added_at": "2026-05-14"
+    }
+  ]
+}
