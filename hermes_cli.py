@@ -20,6 +20,7 @@ Install: pip install hermes-workspace
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +28,14 @@ from pathlib import Path
 
 PACKAGE_DIR = Path(__file__).resolve().parent.parent
 BUILD_DIR = PACKAGE_DIR / "build"
+REGISTRY_FILE = PACKAGE_DIR / "registry" / "skills.json"
+
+
+def _load_registry() -> dict:
+    if not REGISTRY_FILE.exists():
+        return {"skills": []}
+    with open(REGISTRY_FILE) as f:
+        return json.load(f)
 
 
 def _run_script(script_rel_path: str, *args: str) -> int:
@@ -132,7 +141,9 @@ def cmd_marketplace(args: argparse.Namespace) -> int:
 def cmd_version(args: argparse.Namespace) -> int:
     print("Hermes Workspace v2.0.0")
     print("  Platform:  SKILL.md v1 + scan + audit + Plugin Bridge")
-    print("  Registry:  4 skills (Cronalytics A/91, Hawkins A/85, GateMem B/72, Claude Design 300★)")
+    registry = _load_registry()
+    skill_count = len(registry.get("skills", []))
+    print(f"  Registry:  {skill_count} skills")
     print("  Coworkers: 8 pre-built (ops × 3, sales × 2, marketing × 1, legal × 1, hr × 1)")
     print("  Memory:    v1.2 with namespace isolation + GateMem export")
     print("  Channels:  Feishu, Slack, Discord (connector framework)")

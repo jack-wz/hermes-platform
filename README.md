@@ -5,9 +5,10 @@
 
 [![Tests](https://img.shields.io/badge/tests-17%20passed-brightgreen)](tests/)
 [![CI/CD](https://img.shields.io/badge/CI-CD%20pipeline-blue)](.github/workflows/ci.yml)
-[![Registry](https://img.shields.io/badge/registry-3%20skills-green)](registry/skills.json)
+[![Registry](https://img.shields.io/badge/registry-7%20skills-green)](registry/skills.json)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-blue)](Dockerfile)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 
 ---
 

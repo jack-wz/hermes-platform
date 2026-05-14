@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.egg-info/
+dist/
 
 # IDE
 .idea/
@@ -12,5 +14,13 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generated configs (auto-created on first run)
+connector-config.json
+gateway-config.json
+
+# Logs
 logs/*.json
-__pycache__/
+
+# Docker
+.dockerignore  # keep, not ignore
