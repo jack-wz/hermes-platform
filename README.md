@@ -1,22 +1,28 @@
-# Hermes 平台 🦞
+# Hermes Workspace 🦞
 
-> AI Agent 技能生命周期管理平台 — 让每个技能都可审计、可信任、可组合。
+> 开源 AI 团队工作空间 — 8 个 AI 同事 · 共享记忆 · 安全可审计 · Docker 一键部署。
+>
+> Moxt.ai 的开源替代品。自托管，按你自己的方式运行。
 
-[![Phase](https://img.shields.io/badge/phase-5%20in%20progress-blue)](https://github.com/jack-wz/hermes-platform)
+[![Coworkers](https://img.shields.io/badge/coworkers-8%20active-brightgreen)]()
 [![Registry](https://img.shields.io/badge/registry-2%20skills-green)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue)]()
 
 ---
 
-## 这是什么？
+## 🚀 快速开始
 
-Hermes 平台是一套 **AI Agent 技能的标准格式 + 安全扫描 + 审计追踪 + 插件扩展** 系统。它为 AI Agent 生态解决三个核心问题：
+```bash
+# 一行命令启动
+docker compose up -d
 
-1. **技能格式混乱** — 每个 agent 的 skill 格式不同，无法互操作
-2. **安全不可见** — 技能能访问什么、花多少钱，调用者不知道
-3. **执行无追溯** — 技能跑了没有、花了多少 token、结果如何，没有统一记录
+# 或本地运行
+pip install -r requirements.txt
+python3 build/workspace/hermes-dashboard.py
+```
 
-Hermes 平台的答案是：**SKILL.md v1 格式规范 + hermes-scan 安全评级 + hermes-audit 执行收据 + Plugin Bridge 扩展系统**。
+打开 http://localhost:5002 — 你的 AI 团队已就绪。
 
 ---
 
@@ -121,8 +127,8 @@ if not decision.allow:
 | Phase 2 | hermes-scan A-F 静态安全分析器 | ✅ 完成 |
 | Phase 3 | hermes-audit 执行审计收据 | ✅ 完成 |
 | Phase 4 | Extension Guide + Plugin Bridge (3 hooks) | ✅ 完成 |
-| Phase 5 | 生态市场 (Skill Registry + Cronalytics 收录) | 🔜 进行中 |
-| Phase 6 | 开发者平台 (CI/CD + MCP Gateway) | 📋 待定 |
+| Phase 5 | 生态市场 (Skill Registry + Cronalytics 收录) | ✅ 完成 |
+| Phase 6 | AI Workspace (8 Coworkers + 共享记忆 + Dashboard) | ✅ 完成 |
 | Phase 7 | 内容发行 (Content Skill Template) | 📋 待定 |
 
 ---
@@ -160,7 +166,29 @@ registry/
 
 ---
 
-## 🤝 生态接触
+## 🤖 AI 同事
+
+| 角色 | ID | 排程 | Moxt 对标 |
+|------|-----|------|:--:|
+| 晨报员 | ops/morning-brief | 每日 08:00 | ✅ 独家 |
+| 竞品监控员 | ops/competitor-monitor | 每周一 09:00 | ✅ 独家 |
+| 社媒运营员 | marketing/social-media | 每日 10:00 | ✅ |
+| 冷触达专员 | sales/cold-outreach | 工作日 08:00 | ✅ |
+| 合同审查员 | legal/contract-reviewer | 一三五 09:00 | ✅ |
+| 线索评估员 | sales/lead-evaluator | 每日 3 次 | ✅ |
+| 简历筛选员 | hr/resume-screener | 每日 3 次 | ✅ |
+| 多项目追踪员 | ops/project-tracker | 工作日 2 次 | ✅ |
+
+### vs Moxt.ai
+
+| 能力 | Moxt | Hermes Workspace |
+|------|:--:|:--:|
+| AI 同事 | 8 | **8 + 无限自定义** |
+| 共享记忆 | ✅ | ✅ |
+| 安全扫描 | ❌ | ✅ A-F 评级 |
+| 成本透明 | ❌ | ✅ token 级收据 |
+| 开源自部署 | ❌ | ✅ Docker 一键 |
+| 定价 | 积分制 | 自带 API key |
 
 - ✅ [Cronalytics](https://github.com/8bit64k/cronalytics) — Hermes cron 可观测性插件，已发起合作讨论 ([Issue #4](https://github.com/8bit64k/cronalytics/issues/4))
 - 🟡 [Lanes.sh](https://github.com/lanes-sh/app) — Agent-as-CI 层，Hermes 作为后端执行引擎提案进行中

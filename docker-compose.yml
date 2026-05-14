@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  hermes-workspace:
+    build: .
+    ports:
+      - "5002:5002"
+    volumes:
+      - ./registry:/app/registry
+      - ./SHARED_MEMORY.md:/app/SHARED_MEMORY.md
+      - ./logs:/app/logs
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
