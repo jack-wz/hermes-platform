@@ -36,6 +36,8 @@ _SCRIPT_DIR = Path(__file__).resolve().parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hermes_plugin_bridge import (
     PluginBridge,
     PreExecutionDecision,
