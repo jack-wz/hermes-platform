@@ -20,6 +20,8 @@ Endpoints:
     GET  /api/memory             — get shared memory
     POST /api/memory             — add memory entry
     GET  /api/memory/context     — compressed context for coworker injection
+    GET  /api/memory/namespaces  — list memory namespaces (v1.2)
+    GET  /api/memory/gate-mem    — GateMem-compatible export (v1.2)
     GET  /api/status             — workspace health/status
     GET  /                       — web dashboard
 """
@@ -341,6 +343,42 @@ def api_memory_context():
         "recent_entries": len(recent),
         "context": "\n\n".join(lines),
     })
+
+
+@app.route("/api/memory/namespaces", methods=["GET"])
+def api_memory_namespaces():
+    """List available memory namespaces and their entry counts (v1.2)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "hermes_memory", SCRIPT_DIR / "hermes-memory.py"
+    )
+    mem_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mem_module)
+    mem = mem_module.SharedMemory()
+    namespaces = mem.list_namespaces()
+    # Enrich with entry counts
+    for ns in namespaces:
+        entries = mem.get_namespace_entries(ns["id"])
+        ns["entry_count"] = len(entries)
+    return jsonify({
+        "success": True,
+        "count": len(namespaces),
+        "namespaces": namespaces,
+    })
+
+
+@app.route("/api/memory/gate-mem", methods=["GET"])
+def api_memory_gate_mem():
+    """Export memory in GateMem-compatible format (v1.2)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "hermes_memory", SCRIPT_DIR / "hermes-memory.py"
+    )
+    mem_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mem_module)
+    mem = mem_module.SharedMemory()
+    export = mem.gate_mem_compat_export()
+    return jsonify({"success": True, **export})
 
 
 @app.route("/api/status", methods=["GET"])

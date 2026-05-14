@@ -1,6 +1,6 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T09:10:10.015168Z",
+  "updated_at": "2026-05-14T14:30:00Z",
   "skills": [
     {
       "skill_id": "devops/backup/git-auto-backup",
@@ -21,6 +21,52 @@
       ],
       "status": "verified",
       "added_at": "2026-05-14"
+    },
+    {
+      "skill_id": "openclaw-hawkins",
+      "name": "OpenClaw Hawkins — Multi-Agent Orchestration",
+      "version": "1.0.0",
+      "author": "parijatmukherjee",
+      "source": "https://github.com/parijatmukherjee/openclaw-hawkins",
+      "license": "MIT",
+      "rating": "A",
+      "score": 85,
+      "description": "OpenClaw plugin: durable orchestration state (VINES) + decay-aware shared agent memory (VECNA) for multi-agent swarms. 12 typed tools, MariaDB-backed, optional Linear oversight.",
+      "tags": [
+        "openclaw",
+        "plugin",
+        "orchestration",
+        "multi-agent",
+        "shared-memory",
+        "typescript",
+        "mariadb"
+      ],
+      "status": "verified",
+      "category": "plugin",
+      "hermes_compatible": true,
+      "notes": "First third-party OpenClaw plugin — validates Plugin Bridge architecture."
+    },
+    {
+      "skill_id": "gatemem-memory-governance",
+      "name": "GateMem — Memory Governance Benchmark",
+      "version": "0.1.0",
+      "author": "rzhub",
+      "source": "https://github.com/rzhub/GateMem",
+      "license": "Unknown",
+      "rating": "B",
+      "score": 72,
+      "description": "Benchmark for memory governance in multi-principal shared-memory LLM agents. Compatible with hermes-audit.",
+      "tags": [
+        "benchmark",
+        "memory-governance",
+        "multi-principal",
+        "agent-security"
+      ],
+      "status": "verified",
+      "category": "tool",
+      "hermes_compatible": true,
+      "notes": "Can be used as hermes-audit benchmark input."
     }
-  ]
+  ],
+  "total_skills": 3
 }
