@@ -3,12 +3,24 @@ version: '3.8'
 services:
   hermes-workspace:
     build: .
+    container_name: hermes-workspace
     ports:
-      - "5002:5002"
+      - "${HERMES_PORT:-5002}:5002"
     volumes:
-      - ./registry:/app/registry
-      - ./SHARED_MEMORY.md:/app/SHARED_MEMORY.md
-      - ./logs:/app/logs
+      - ./registry:/app/registry:ro
+      - hermes_memory:/app/memory
+      - hermes_logs:/app/logs
     restart: unless-stopped
     environment:
       - TZ=Asia/Shanghai
+      - FLASK_ENV=production
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/api/status')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  hermes_memory:
+  hermes_logs:

@@ -5,19 +5,21 @@ hermes-dashboard — Web Dashboard + REST API for Hermes Workspace.
 A single-file Flask app providing:
   - REST API: coworkers, skills, memory, status, execution logs
   - Web Dashboard (dark-themed, single-page, pure HTML+CSS)
+  - Actual coworker execution via subprocess (not just log stubs!)
 
 Usage:
-    pip install flask
+    pip install flask pyyaml
     python3 build/workspace/hermes-dashboard.py
-    # Opens at http://localhost:5000
+    # Opens at http://localhost:5002
 
 Endpoints:
     GET  /api/coworkers          — list all coworkers
-    POST /api/coworkers/run      — trigger a coworker
+    POST /api/coworkers/run      — trigger a coworker (spawns subprocess)
     GET  /api/coworkers/<id>/log — recent execution logs
     GET  /api/registry/skills    — list registered skills
     GET  /api/memory             — get shared memory
     POST /api/memory             — add memory entry
+    GET  /api/memory/context     — compressed context for coworker injection
     GET  /api/status             — workspace health/status
     GET  /                       — web dashboard
 """
@@ -27,6 +29,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -134,7 +139,7 @@ def api_coworkers():
 
 @app.route("/api/coworkers/run", methods=["POST"])
 def api_coworkers_run():
-    """Trigger a coworker execution."""
+    """Trigger a coworker execution — spawns hermes-coworker.py as subprocess."""
     body = request.get_json(silent=True) or {}
     coworker_id = body.get("coworker_id", "").strip()
     if not coworker_id:
@@ -149,34 +154,95 @@ def api_coworkers_run():
     if not coworker:
         return jsonify({"success": False, "error": f"Coworker not found: {coworker_id}"}), 404
 
-    # Build a lightweight run record (no actual subprocess for safety)
     run_id = uuid.uuid4().hex[:8]
     started = datetime.now(timezone.utc)
-    completed = datetime.now(timezone.utc)
+
+    # Pre-create log entry
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    safe_id = coworker_id.replace("/", "_")
+    log_path = LOGS_DIR / f"{safe_id}_{run_id}.json"
+
     run_log = {
         "run_id": run_id,
         "coworker_id": coworker_id,
         "run_name": coworker.get("name", coworker_id),
         "trigger_reason": "api",
         "started_at": started.isoformat(),
-        "completed_at": completed.isoformat(),
-        "duration_ms": 0,
+        "completed_at": None,
+        "duration_ms": None,
+        "exit_code": None,
+        "stdout": "",
+        "stderr": "",
         "results": [
-            {
-                "skill_id": skill_id,
-                "status": "dispatched",
-                "note": "Execution dispatched via dashboard API",
-            }
-            for skill_id in coworker.get("skills", [])
+            {"skill_id": sid, "status": "pending", "note": "Spawned via dashboard API"}
+            for sid in coworker.get("skills", [])
         ],
     }
-    # Persist log
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    safe_id = coworker_id.replace("/", "_")
-    log_path = LOGS_DIR / f"{safe_id}_{run_id}.json"
-    log_path.write_text(json.dumps(run_log, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return jsonify({"success": True, "run_id": run_id, "run_log": run_log})
+    def _run_coworker():
+        """Background thread: execute hermes-coworker.py and update log."""
+        try:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(COWORKER_ENGINE_SCRIPT),
+                    "run", coworker_id,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                cwd=str(PROJECT_ROOT),
+            )
+            stdout = proc.stdout[-8000:] if len(proc.stdout) > 8000 else proc.stdout
+            stderr = proc.stderr[-4000:] if len(proc.stderr) > 4000 else proc.stderr
+            run_log["completed_at"] = datetime.now(timezone.utc).isoformat()
+            run_log["duration_ms"] = int(
+                (datetime.now(timezone.utc) - started).total_seconds() * 1000
+            )
+            run_log["exit_code"] = proc.returncode
+            run_log["stdout"] = stdout
+            run_log["stderr"] = stderr
+            for r in run_log["results"]:
+                r["status"] = "completed" if proc.returncode == 0 else "error"
+        except subprocess.TimeoutExpired:
+            run_log["completed_at"] = datetime.now(timezone.utc).isoformat()
+            run_log["duration_ms"] = 120_000
+            run_log["exit_code"] = -1
+            run_log["stderr"] = "Coworker execution timed out (120s)"
+            for r in run_log["results"]:
+                r["status"] = "timeout"
+        except Exception as exc:
+            run_log["completed_at"] = datetime.now(timezone.utc).isoformat()
+            run_log["duration_ms"] = int(
+                (datetime.now(timezone.utc) - started).total_seconds() * 1000
+            )
+            run_log["exit_code"] = -2
+            run_log["stderr"] = f"Subprocess error: {exc}"
+            for r in run_log["results"]:
+                r["status"] = "error"
+        finally:
+            log_path.write_text(
+                json.dumps(run_log, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+
+    # Spawn background thread — returns immediately
+    t = threading.Thread(target=_run_coworker, daemon=True)
+    t.start()
+
+    # Write initial log (completed_at=None signals "in progress")
+    log_path.write_text(
+        json.dumps(run_log, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    return jsonify({
+        "success": True,
+        "run_id": run_id,
+        "status": "dispatched",
+        "coworker_id": coworker_id,
+        "skills_count": len(coworker.get("skills", [])),
+    })
 
 
 @app.route("/api/coworkers/<path:coworker_id>/log", methods=["GET"])
@@ -254,6 +320,26 @@ def api_memory_post():
         "timestamp": timestamp,
         "author": author,
         "entry": entry_text,
+    })
+
+
+@app.route("/api/memory/context", methods=["GET"])
+def api_memory_context():
+    """Return compressed shared-memory context for coworker prompt injection."""
+    entries = _parse_memory_entries()
+    # Return last 10 entries only (compressed context)
+    recent = entries[-10:] if len(entries) > 10 else entries
+    lines = []
+    for e in recent:
+        lines.append(
+            f"[{e.get('timestamp', '')}] [{e.get('author', '')}]\n"
+            f"{e.get('body', '')[:500]}"  # Truncate long entries
+        )
+    return jsonify({
+        "success": True,
+        "entry_count": len(entries),
+        "recent_entries": len(recent),
+        "context": "\n\n".join(lines),
     })
 
 

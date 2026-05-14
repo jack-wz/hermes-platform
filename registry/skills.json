@@ -1,45 +1,26 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T17:16:44.898482",
+  "updated_at": "2026-05-14T09:10:10.015168Z",
   "skills": [
     {
       "skill_id": "devops/backup/git-auto-backup",
       "name": "Git Auto Backup",
-      "name_zh": "Git 自动备份",
       "version": "1.0.0",
       "author": "技术开发·工匠长",
-      "description": "自动备份指定目录到远程 Git 仓库。支持增量提交、自动冲突检测、大文件告警和备份完整性校验。",
+      "description_zh": "自动备份指定目录到远程 Git 仓库。支持增量提交、自动冲突检测、 大文件告警和备份完整性校验。适用于 Hermes 工作区、配置文件、 技能目录等需要版本化备份的场景。触发条件：手动调用或 cron 定时任务。",
       "rating": "B",
       "score": 88,
       "source": "hermes-platform",
       "path": "build/phase1/example-skill.SKILL.md",
       "tags": [
-        "devops",
         "backup",
         "git",
-        "自动化"
+        "automation",
+        "devops",
+        "cron"
       ],
       "status": "verified",
       "added_at": "2026-05-14"
-    },
-    {
-      "skill_id": "monitoring/cronalytics",
-      "name": "monitoring/cronalytics",
-      "name_zh": "",
-      "version": "1.0.0",
-      "author": "8bit64k",
-      "description": "Hermes Agent 原生 cron 可观测性插件。提供 cron job 的执行成本追踪、 成功率监控和异常告警。适合需要了解 agent 定时任务运行成本的团队。 触发条件：Hermes Agent 运行中自动激活。\n",
-      "rating": "A",
-      "score": 91,
-      "source": "local",
-      "path": "registry/skills/cronalytics.SKILL.md",
-      "tags": [
-        "monitoring",
-        "cron",
-        "observability"
-      ],
-      "status": "verified",
-      "added_at": "2026-05-14T17:16:44.896978"
     }
   ]
 }
