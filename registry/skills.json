@@ -1,6 +1,6 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T14:30:00Z",
+  "updated_at": "2026-05-14T16:57:58.864635Z",
   "skills": [
     {
       "skill_id": "devops/backup/git-auto-backup",
@@ -66,7 +66,31 @@
       "category": "tool",
       "hermes_compatible": true,
       "notes": "Can be used as hermes-audit benchmark input."
+    },
+    {
+      "skill_id": "claude-code-design-ai",
+      "name": "claude-code-design-ai",
+      "version": "1.0.0",
+      "author": "mikesheehan54",
+      "description": "Claude Design: AI UI/UX architect. Screenshot to React, Figma components, Tailwind CSS generator. Prototyping agent, design systems, wireframe renderer. SVG icon creator, dark mode toggle, responsive ",
+      "rating": "unscanned",
+      "score": 0,
+      "source": "hermes-registry/claude-code-design-ai",
+      "tags": [
+        "claude-ai",
+        "claude-code",
+        "claude-code-cli",
+        "claude-code-hooks",
+        "claude-code-marketplace",
+        "design",
+        "ui",
+        "ux"
+      ],
+      "status": "verified",
+      "category": "general",
+      "added_at": "2026-05-14",
+      "license": "MIT"
     }
   ],
-  "total_skills": 3
+  "total_skills": 4
 }
