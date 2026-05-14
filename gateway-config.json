@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "models": [
+    {
+      "id": "claude-sonnet",
+      "provider": "anthropic",
+      "model_name": "claude-sonnet-4-20250514",
+      "capabilities": [
+        "reasoning",
+        "code",
+        "writing",
+        "analysis",
+        "long-context"
+      ],
+      "cost_per_1k_tokens": 0.003,
+      "max_tokens": 8000,
+      "enabled": true,
+      "priority": 10
+    },
+    {
+      "id": "claude-opus",
+      "provider": "anthropic",
+      "model_name": "claude-opus-4-20250514",
+      "capabilities": [
+        "reasoning",
+        "code",
+        "writing",
+        "complex-analysis",
+        "long-context"
+      ],
+      "cost_per_1k_tokens": 0.015,
+      "max_tokens": 8000,
+      "enabled": true,
+      "priority": 8
+    },
+    {
+      "id": "gpt-5.4",
+      "provider": "openai",
+      "model_name": "gpt-5.4",
+      "capabilities": [
+        "code",
+        "reasoning",
+        "data-analysis",
+        "tool-use"
+      ],
+      "cost_per_1k_tokens": 0.005,
+      "max_tokens": 8000,
+      "enabled": true,
+      "priority": 9
+    },
+    {
+      "id": "gpt-5.4-mini",
+      "provider": "openai",
+      "model_name": "gpt-5.4-mini",
+      "capabilities": [
+        "fast",
+        "classification",
+        "summarization",
+        "simple-tasks"
+      ],
+      "cost_per_1k_tokens": 0.0005,
+      "max_tokens": 4000,
+      "enabled": true,
+      "priority": 6
+    },
+    {
+      "id": "gemini-pro",
+      "provider": "google",
+      "model_name": "gemini-2.5-pro",
+      "capabilities": [
+        "multimodal",
+        "reasoning",
+        "code",
+        "long-context"
+      ],
+      "cost_per_1k_tokens": 0.0035,
+      "max_tokens": 8000,
+      "enabled": true,
+      "priority": 7
+    },
+    {
+      "id": "deepseek-v4",
+      "provider": "deepseek",
+      "model_name": "deepseek-v4-pro",
+      "capabilities": [
+        "code",
+        "reasoning",
+        "cost-efficient"
+      ],
+      "cost_per_1k_tokens": 0.001,
+      "max_tokens": 8000,
+      "enabled": true,
+      "priority": 5
+    }
+  ],
+  "default_model": "claude-sonnet",
+  "fallback_model": "gpt-5.4-mini",
+  "rate_limit_per_minute": 30
+}

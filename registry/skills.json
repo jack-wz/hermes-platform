@@ -1,6 +1,6 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T16:57:58.864635Z",
+  "updated_at": "2026-05-14T18:42:53.237006Z",
   "skills": [
     {
       "skill_id": "devops/backup/git-auto-backup",
@@ -90,7 +90,75 @@
       "category": "general",
       "added_at": "2026-05-14",
       "license": "MIT"
+    },
+    {
+      "skill_id": "claude-code-design-toolkit",
+      "name": "claude-code-design-toolkit",
+      "version": "1.0.0",
+      "author": "joshica41",
+      "description": "Ultimate Free Claude Code AI Design Skills & Subagents for 2026 🚀 Instant Download",
+      "rating": "unscanned",
+      "score": 0,
+      "source": "hermes-registry/claude-code-design-toolkit",
+      "tags": [
+        "claude",
+        "claude-ai",
+        "claude-code",
+        "claude-code-cli",
+        "claude-code-hooks",
+        "design",
+        "ai",
+        "agent"
+      ],
+      "status": "verified",
+      "category": "general",
+      "added_at": "2026-05-14",
+      "license": "Unknown"
+    },
+    {
+      "skill_id": "power-design",
+      "name": "power-design",
+      "version": "1.0.0",
+      "author": "ItsssssJack",
+      "description": "A Claude skill for slides that don't look like AI made them. Brand DNA × 20 codified design principles.",
+      "rating": "unscanned",
+      "score": 0,
+      "source": "hermes-registry/power-design",
+      "tags": [
+        "design",
+        "ai",
+        "skill",
+        "claude"
+      ],
+      "status": "verified",
+      "category": "general",
+      "added_at": "2026-05-14",
+      "license": "NOASSERTION"
+    },
+    {
+      "skill_id": "visual-taste-lab",
+      "name": "visual-taste-lab",
+      "version": "1.0.0",
+      "author": "siuserxiaowei",
+      "description": "VI-first UI/UX design-language skill for Codex and Claude Code｜让 AI 先做视觉身份审计再写页面",
+      "rating": "unscanned",
+      "score": 0,
+      "source": "hermes-registry/visual-taste-lab",
+      "tags": [
+        "ai-web-design",
+        "claude-code",
+        "codex",
+        "design-system",
+        "ui-ux",
+        "design",
+        "ui",
+        "ux"
+      ],
+      "status": "verified",
+      "category": "general",
+      "added_at": "2026-05-14",
+      "license": "MIT"
     }
   ],
-  "total_skills": 4
+  "total_skills": 7
 }

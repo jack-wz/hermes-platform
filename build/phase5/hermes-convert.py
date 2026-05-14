@@ -103,7 +103,7 @@ version: 1.0.0
 description: "{desc}"
 author: {owner}
 source: {repo.get("html_url")}
-license: {repo.get("license", {}).get("spdx_id", "Unknown")}
+license: {(repo.get("license") or {}).get("spdx_id", "Unknown")}
 stars: {stars}
 tags: {json.dumps(tags)}
 
@@ -133,7 +133,7 @@ converted:
     Path(args.output).write_text(skill_md, encoding="utf-8") if hasattr(args, 'output') else print(skill_md)
     
     print(f"✅ Converted: {skill_id}")
-    print(f"   Stars: {stars}★  License: {repo.get('license', {}).get('spdx_id', 'N/A')}")
+    print(f"   Stars: {stars}★  License: {(repo.get('license') or {}).get('spdx_id', 'N/A')}")
     print(f"   Tags: {', '.join(tags)}")
     print(f"   Permissions: {', '.join(security['permissions']) if security['permissions'] else 'none'}")
     
