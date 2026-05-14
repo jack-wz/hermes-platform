@@ -1,0 +1,74 @@
+{
+  "registry_version": "1.0.0",
+  "updated_at": "2026-05-14T12:04:51.130101+00:00",
+  "coworkers": [
+    {
+      "coworker_id": "ops/morning-brief",
+      "name": "晨报员",
+      "name_en": "Morning Brief Agent",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "每日早晨自动生成运营简报，汇总系统状态、技能健康度和关键指标。",
+      "role_type": "operations",
+      "schedule": "0 8 * * *",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "晨报",
+        "morning brief",
+        "今日概览",
+        "早报",
+        "每天开始"
+      ],
+      "path": "registry/coworkers/ops/morning-brief.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:04:44.848861+00:00"
+    },
+    {
+      "coworker_id": "ops/competitor-monitor",
+      "name": "竞品监控员",
+      "name_en": "Competitor Monitor Agent",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "每周自动扫描竞品动态，追踪 Moxt.ai 等竞品的功能更新、融资和 PR 活动。",
+      "role_type": "operations",
+      "schedule": "0 9 * * 1",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "竞品",
+        "competitor",
+        "竞对",
+        "市场监测",
+        "对手动态"
+      ],
+      "path": "registry/coworkers/ops/competitor-monitor.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:04:51.120034+00:00"
+    }
+  ]
+}
