@@ -18,7 +18,7 @@ def save_registry(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 def cmd_add(path):
-    target = Path(path)
+    target = Path(path).resolve()
     if not target.exists():
         print("File not found:", path)
         return
