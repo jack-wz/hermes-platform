@@ -2,8 +2,8 @@
 
 > AI Agent 技能生命周期管理平台 — 让每个技能都可审计、可信任、可组合。
 
-[![Phase](https://img.shields.io/badge/phase-4%2F4%20complete-brightgreen)](https://github.com/jack-wz/hermes-platform)
-[![Build](https://img.shields.io/badge/build-verified-brightgreen)]()
+[![Phase](https://img.shields.io/badge/phase-5%20in%20progress-blue)](https://github.com/jack-wz/hermes-platform)
+[![Registry](https://img.shields.io/badge/registry-2%20skills-green)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ---
@@ -57,11 +57,21 @@ Hermes 平台的答案是：**SKILL.md v1 格式规范 + hermes-scan 安全评�
 ### 扫描一个技能
 
 ```bash
-# 安装依赖
 pip install pyyaml
-
-# 扫描技能文件，输出 A-F 评级
 python3 build/phase2/hermes-scan.py your-skill.SKILL.md --pretty
+```
+
+### 注册表管理
+
+```bash
+# 查看已注册技能
+python3 build/phase5/hermes-registry.py list
+
+# 搜索技能
+python3 build/phase5/hermes-registry.py search backup
+
+# 注册新技能（自动扫描评级）
+python3 build/phase5/hermes-registry.py add your-skill.SKILL.md
 ```
 
 输出示例：
@@ -111,7 +121,7 @@ if not decision.allow:
 | Phase 2 | hermes-scan A-F 静态安全分析器 | ✅ 完成 |
 | Phase 3 | hermes-audit 执行审计收据 | ✅ 完成 |
 | Phase 4 | Extension Guide + Plugin Bridge (3 hooks) | ✅ 完成 |
-| Phase 5 | 生态市场 (Skill Registry + Plugin Marketplace) | 🔜 规划中 |
+| Phase 5 | 生态市场 (Skill Registry + Cronalytics 收录) | 🔜 进行中 |
 | Phase 6 | 开发者平台 (CI/CD + MCP Gateway) | 📋 待定 |
 | Phase 7 | 内容发行 (Content Skill Template) | 📋 待定 |
 
@@ -140,8 +150,12 @@ build/
 │   └── test-receipt.json        # 测试收据
 └── phase4/
     ├── EXTENSION-GUIDE.md       # 开发者指南 (810行)
-    ├── hermes-plugin-bridge.py  # 插件桥接 (577行)
-    └── plugin-config.example.json
+    └── hermes_plugin_bridge/    # 插件桥接包
+
+registry/
+├── skills.json                 # 技能注册表 (2 技能)
+└── skills/
+    └── cronalytics.SKILL.md    # Cronalytics 收录 (A/91)
 ```
 
 ---
