@@ -1,6 +1,6 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T12:12:33.193580+00:00",
+  "updated_at": "2026-05-14T19:00:00Z",
   "coworkers": [
     {
       "coworker_id": "ops/morning-brief",
@@ -292,6 +292,24 @@
       "path": "registry/coworkers/ops/project-tracker.COWORKER.md",
       "status": "active",
       "registered_at": "2026-05-14T12:12:33.193381+00:00"
+    },
+    {
+      "coworker_id": "knowledge/curator",
+      "name": "Knowledge Curator",
+      "role_type": "knowledge",
+      "status": "active",
+      "description": "知识管理专员。自动整理文档为 LLM Wiki 格式，维护 [[双向链接]] 和知识库索引。",
+      "skills": [
+        "hermes-knowledge",
+        "hermes-memory"
+      ],
+      "trigger_keywords": [
+        "写入知识库",
+        "结合知识库",
+        "导入知识库",
+        "整理知识"
+      ],
+      "schedule": null
     }
   ]
 }
