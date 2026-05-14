@@ -1,6 +1,6 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T12:04:51.130101+00:00",
+  "updated_at": "2026-05-14T12:12:33.193580+00:00",
   "coworkers": [
     {
       "coworker_id": "ops/morning-brief",
@@ -69,6 +69,229 @@
       "path": "registry/coworkers/ops/competitor-monitor.COWORKER.md",
       "status": "active",
       "registered_at": "2026-05-14T12:04:51.120034+00:00"
+    },
+    {
+      "coworker_id": "marketing/social-media",
+      "name": "社媒运营员",
+      "name_en": "Social Media Operator",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "跨平台社媒运营自动化——小红书/公众号/抖音内容日历管理、跨平台分发和数据追踪。",
+      "role_type": "marketing",
+      "schedule": "0 10 * * *",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "社媒",
+        "小红书",
+        "公众号",
+        "抖音",
+        "social media",
+        "内容日历",
+        "跨平台分发",
+        "社交媒体"
+      ],
+      "path": "registry/coworkers/marketing/social-media.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:25.580842+00:00"
+    },
+    {
+      "coworker_id": "sales/cold-outreach",
+      "name": "冷触达专员",
+      "name_en": "Cold Outreach Specialist",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "自动化冷触达销售流程——寻找目标客户、个性化邮件、发送跟进、追踪打开率、管理销售漏斗。",
+      "role_type": "sales",
+      "schedule": "0 8 * * 1-5",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "冷触达",
+        "cold outreach",
+        "销售开发",
+        "潜客",
+        "开发信",
+        "SDR",
+        "外拓"
+      ],
+      "path": "registry/coworkers/sales/cold-outreach.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:26.956898+00:00"
+    },
+    {
+      "coworker_id": "legal/contract-reviewer",
+      "name": "合同审查员",
+      "name_en": "Contract Reviewer",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "智能合同审查——扫描NDA、标记风险条款、对比修改痕迹、总结核心条款、起草修改建议。",
+      "role_type": "legal",
+      "schedule": "0 9 * * 1,3,5",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "合同",
+        "审查",
+        "NDA",
+        "条款",
+        "contract",
+        "法律审查",
+        "风险条款",
+        "修改建议"
+      ],
+      "path": "registry/coworkers/legal/contract-reviewer.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:28.493427+00:00"
+    },
+    {
+      "coworker_id": "sales/lead-evaluator",
+      "name": "线索评估员",
+      "name_en": "Lead Evaluator",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "智能线索评分与评估——评分线索、补充企业信息、按匹配度排序、标记高意向、导入漏斗。",
+      "role_type": "sales",
+      "schedule": "0 7,13,19 * * *",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "线索",
+        "评估",
+        "lead",
+        "评分",
+        "意向",
+        "匹配度",
+        "线索评分",
+        "潜客评估"
+      ],
+      "path": "registry/coworkers/sales/lead-evaluator.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:30.071532+00:00"
+    },
+    {
+      "coworker_id": "hr/resume-screener",
+      "name": "简历筛选员",
+      "name_en": "Resume Screener",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "智能简历筛选——解析简历、匹配岗位、排名候选人、标记风险点、输出入围名单。",
+      "role_type": "hr",
+      "schedule": "0 6,14,22 * * *",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "简历",
+        "筛选",
+        "候选人",
+        "resume",
+        "招聘",
+        "岗位匹配",
+        "入围",
+        "HR",
+        "人才"
+      ],
+      "path": "registry/coworkers/hr/resume-screener.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:31.640655+00:00"
+    },
+    {
+      "coworker_id": "ops/project-tracker",
+      "name": "多项目追踪员",
+      "name_en": "Multi-Project Tracker",
+      "version": "1.0.0",
+      "author": "team_build",
+      "description": "多项目并行追踪——追踪截止日期、标记逾期、发送状态更新、生成周报。",
+      "role_type": "operations",
+      "schedule": "0 8,17 * * 1-5",
+      "skills": [
+        "monitoring/cronalytics"
+      ],
+      "permissions": {
+        "tools": [
+          "terminal",
+          "file",
+          "web"
+        ]
+      },
+      "memory": {
+        "shared": true,
+        "scope": "workspace"
+      },
+      "trigger_keywords": [
+        "项目",
+        "追踪",
+        "截止日期",
+        "逾期",
+        "project",
+        "周报",
+        "里程碑",
+        "状态更新",
+        "进度"
+      ],
+      "path": "registry/coworkers/ops/project-tracker.COWORKER.md",
+      "status": "active",
+      "registered_at": "2026-05-14T12:12:33.193381+00:00"
     }
   ]
 }
