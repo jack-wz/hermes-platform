@@ -114,9 +114,51 @@ Phase D — npm 接入评估
 | **C** | 符号化 + token 优化 | 2-3h | Phase B |
 | **D** | npm 包评估 + 接入决策 | 1h | Phase C |
 
+> **2026-05-15 更新**: Phase A-C 已完成。Phase D 评估如下。
+
 ---
 
-## 5. 参考链接
+## 5. Phase D — npm 接入评估 (2026-05-15)
+
+### 5.1 评估基准
+
+| 维度 | @tencentdb-agent-memory (npm) | Hermes Memory v2 (自研) |
+|---|---|---|
+| **License** | MIT ✅ (已变更，原为 "Other") | MIT |
+| **语言/运行时** | TypeScript, Node >= 22.16 | Python 3.11+ |
+| **安装方式** | `openclaw plugins install @tencentdb-agent-memory/memory-tencentdb` | `import hermes_memory` |
+| **存储后端** | SQLite + sqlite-vec | 文件系统 (Markdown + JSONL) |
+| **L0-L3 分层** | ✅ | ✅ (蒸馏自同一架构) |
+| **符号化压缩** | Mermaid canvas + `node_id` | Mermaid graph + `node_id` (Phase C) |
+| **自动蒸馏** | LLM-based 提取 | 启发式 regex 提取 (Phase B) |
+| **向量检索** | sqlite-vec embedding | 无（渐进披露代替检索） |
+| **Hermes 兼容** | 有 badge，但需 npm 桥接 | 原生 Python，零桥接 |
+| **基准数据** | WideSearch +61% pass, -61% tokens | 未跑基准 |
+| **维护负担** | 依赖上游更新 | 完全自主 |
+
+### 5.2 决策
+
+| 维度 | 结论 |
+|---|---|
+| **是否现在接入 npm？** | ❌ 不接入 |
+| **原因** | (1) 功能覆盖 ~80% — 我们的 Phase A-C 已实现核心架构；(2) 引入 Node.js 运行时增加运维复杂度；(3) 启发式提取虽不如 LLM-based，但零外部依赖的优势在当前阶段更大 |
+| **未来路径** | ✅ 标记为可选插件 — License 已变 MIT，可在 Marketplace 中提供 `@tencentdb-agent-memory` 作为增强选项（当需要 LLM-based 提取和向量检索时） |
+| **ADR 影响** | ADR-002 (零 npm 核心依赖) 维持有效，追加：Phase D 确认 npm 包为可选增强而非核心依赖 |
+
+### 5.3 Memory v2 最终状态
+
+```
+Phase A — 分层目录结构       ✅ (66aa92e)
+Phase B — 蒸馏管道            ✅ (66c54d8)
+Phase C — 符号化压缩          ✅ (40495fd)
+Phase D — npm 接入评估        ✅ (本次) → 决策：自维护，npm 为可选增强
+```
+
+**Memory v2 全阶段完成。** 🎉
+
+---
+
+## 6. 参考链接
 
 - 源仓库：https://github.com/Tencent/TencentDB-Agent-Memory
 - SKILL.md：安装配置完整指南

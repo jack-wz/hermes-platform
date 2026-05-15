@@ -36,12 +36,14 @@ Core components implemented in pure Python:
 - ⚠️ Slower initial delivery (build from scratch vs install-and-configure)
 - ⚠️ Must maintain our own distillation heuristics (Phase B uses regex, not LLM)
 
-## Phase D (Future)
+## Phase D (2026-05-15 — Completed)
 
-When Phase D is reached:
-- Evaluate `@tencentdb-agent-memory` as an optional plugin
-- Compare our heuristics vs TencentDB's LLM-based extraction
-- Decision: adopt, wrap, or continue self-maintained
+Phase D evaluation confirmed the original decision:
+- `@tencentdb-agent-memory` license is now MIT (was "Other" at time of ADR-002)
+- Functional overlap ~80% with our Phase A-C implementation
+- Adding Node.js runtime to Python stack adds maintenance burden
+- **Decision**: Continue self-maintained. npm package remains an optional enhancement path via Marketplace.
+- ADR-002 remains in force with this update.
 
 ## Alternatives Considered
 
