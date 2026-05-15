@@ -1,0 +1,43 @@
+{
+  "capsule_id": "mattpocock-skills-intake",
+  "type": "ecosystem_intake",
+  "source": "https://github.com/mattpocock/skills",
+  "source_meta": {
+    "stars": 83800,
+    "forks": 7300,
+    "license": "MIT",
+    "language": "TypeScript",
+    "author": "mattpocock (ex-Vercel, Total TypeScript)",
+    "skill_count": 18
+  },
+  "evaluation": {
+    "rating": "A",
+    "score": 88,
+    "strategy": "methodology_distillation",
+    "decision": "不接入 npm — 方法论蒸馏到 Hermes 治理规则"
+  },
+  "key_insights": [
+    "共享语言(CONTEXT.md+ADR) 是最高价值技巧 — 解决跨 agent 术语混乱",
+    "审讯会话(/grill-with-docs) 强制 agent 启动前对齐需求",
+    "Agent 交接协议(/handoff) 标准化跨 agent 任务移交",
+    "红绿重构(/tdd) 和架构保养(/improve-codebase-architecture) 可嵌入现有 cron"
+  ],
+  "distillation_outputs": [
+    "docs/reference/mattpocock-skills-evaluation.md",
+    "registry/skills.json (skill #9)"
+  ],
+  "pending_steps": [
+    "Step 1: 创建 CONTEXT.md 术语表",
+    "Step 2: 写入 ADR-001/002/003",
+    "Step 3: 创建 Agent 对齐规则",
+    "Step 4: 创建 Handoff 协议"
+  ],
+  "registered_at": "2026-05-15T11:32:50.959957+00:00",
+  "registered_by": "team_skillops",
+  "tags": [
+    "methodology",
+    "engineering",
+    "agent-alignment",
+    "shared-language"
+  ]
+}

@@ -183,7 +183,34 @@
       "added_at": "2026-05-15",
       "license": "MIT",
       "stars": 741
+    },
+    {
+      "skill_id": "mattpocock-engineering-skills",
+      "name": "Matt Pocock — Engineering Skills for AI Coding Agents",
+      "version": "1.0.0",
+      "author": "mattpocock",
+      "description": "方法论技能包 — 18 个 Claude/Codex 工程技能，覆盖沟通对齐(/grill-with-docs)、共享语言(CONTEXT.md+ADR)、红绿重构(/tdd)、架构保养(/improve-codebase-architecture)、Agent 交接(/handoff)。基于 Pragmatic Programmer + DDD + XP 数十年工程经验。83.8k★，MIT 许可。",
+      "rating": "A",
+      "score": 88,
+      "source": "https://github.com/mattpocock/skills",
+      "path": "docs/reference/mattpocock-skills-evaluation.md",
+      "tags": [
+        "methodology",
+        "engineering",
+        "tdd",
+        "shared-language",
+        "architecture",
+        "agent-alignment",
+        "claude-code",
+        "codex"
+      ],
+      "status": "verified",
+      "category": "methodology",
+      "added_at": "2026-05-15",
+      "license": "MIT",
+      "stars": 83800,
+      "notes": "不接入 npm — 方法论蒸馏到 Hermes 治理规则。Step 1-4: CONTEXT.md + ADR + 对齐规则 + Handoff 协议。"
     }
   ],
-  "total_skills": 8
+  "total_skills": 9
 }
