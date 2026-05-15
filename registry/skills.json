@@ -1,13 +1,13 @@
 {
   "registry_version": "1.0.0",
-  "updated_at": "2026-05-14T18:42:53.237006Z",
+  "updated_at": "2026-05-15T12:16:23.797241Z",
   "skills": [
     {
       "skill_id": "devops/backup/git-auto-backup",
       "name": "Git Auto Backup",
       "version": "1.0.0",
-      "author": "\u6280\u672f\u5f00\u53d1\u00b7\u5de5\u5320\u957f",
-      "description_zh": "\u81ea\u52a8\u5907\u4efd\u6307\u5b9a\u76ee\u5f55\u5230\u8fdc\u7a0b Git \u4ed3\u5e93\u3002\u652f\u6301\u589e\u91cf\u63d0\u4ea4\u3001\u81ea\u52a8\u51b2\u7a81\u68c0\u6d4b\u3001 \u5927\u6587\u4ef6\u544a\u8b66\u548c\u5907\u4efd\u5b8c\u6574\u6027\u6821\u9a8c\u3002\u9002\u7528\u4e8e Hermes \u5de5\u4f5c\u533a\u3001\u914d\u7f6e\u6587\u4ef6\u3001 \u6280\u80fd\u76ee\u5f55\u7b49\u9700\u8981\u7248\u672c\u5316\u5907\u4efd\u7684\u573a\u666f\u3002\u89e6\u53d1\u6761\u4ef6\uff1a\u624b\u52a8\u8c03\u7528\u6216 cron \u5b9a\u65f6\u4efb\u52a1\u3002",
+      "author": "技术开发·工匠长",
+      "description_zh": "自动备份指定目录到远程 Git 仓库。支持增量提交、自动冲突检测、 大文件告警和备份完整性校验。适用于 Hermes 工作区、配置文件、 技能目录等需要版本化备份的场景。触发条件：手动调用或 cron 定时任务。",
       "rating": "B",
       "score": 88,
       "source": "hermes-platform",
@@ -24,7 +24,7 @@
     },
     {
       "skill_id": "openclaw-hawkins",
-      "name": "OpenClaw Hawkins \u2014 Multi-Agent Orchestration",
+      "name": "OpenClaw Hawkins — Multi-Agent Orchestration",
       "version": "1.0.0",
       "author": "parijatmukherjee",
       "source": "https://github.com/parijatmukherjee/openclaw-hawkins",
@@ -44,11 +44,11 @@
       "status": "verified",
       "category": "plugin",
       "hermes_compatible": true,
-      "notes": "First third-party OpenClaw plugin \u2014 validates Plugin Bridge architecture."
+      "notes": "First third-party OpenClaw plugin — validates Plugin Bridge architecture."
     },
     {
       "skill_id": "gatemem-memory-governance",
-      "name": "GateMem \u2014 Memory Governance Benchmark",
+      "name": "GateMem — Memory Governance Benchmark",
       "version": "0.1.0",
       "author": "rzhub",
       "source": "https://github.com/rzhub/GateMem",
@@ -96,7 +96,7 @@
       "name": "claude-code-design-toolkit",
       "version": "1.0.0",
       "author": "joshica41",
-      "description": "Ultimate Free Claude Code AI Design Skills & Subagents for 2026 \ud83d\ude80 Instant Download",
+      "description": "Ultimate Free Claude Code AI Design Skills & Subagents for 2026 🚀 Instant Download",
       "rating": "F",
       "score": 10,
       "source": "hermes-registry/claude-code-design-toolkit",
@@ -120,7 +120,7 @@
       "name": "power-design",
       "version": "1.0.0",
       "author": "ItsssssJack",
-      "description": "A Claude skill for slides that don't look like AI made them. Brand DNA \u00d7 20 codified design principles.",
+      "description": "A Claude skill for slides that don't look like AI made them. Brand DNA × 20 codified design principles.",
       "rating": "F",
       "score": 5,
       "source": "hermes-registry/power-design",
@@ -210,7 +210,20 @@
       "license": "MIT",
       "stars": 83800,
       "notes": "不接入 npm — 方法论蒸馏到 Hermes 治理规则。Step 1-4: CONTEXT.md + ADR + 对齐规则 + Handoff 协议。"
+    },
+    {
+      "skill_id": "test-plugin-skill",
+      "name": "Test Plugin Skill",
+      "rating": "B",
+      "score": 75,
+      "tags": [
+        "test",
+        "plugin"
+      ],
+      "source": "test-plugin",
+      "status": "synced",
+      "added_at": "2026-05-15"
     }
   ],
-  "total_skills": 9
+  "total_skills": 10
 }

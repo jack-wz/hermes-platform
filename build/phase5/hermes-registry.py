@@ -87,7 +87,7 @@ MARKETPLACE_HTML = """<!DOCTYPE html>
 <div class="header">
   <span class="logo">🏪</span>
   <h1>Hermes Skill Marketplace</h1>
-  <span class="badge" id="count-badge">8 skills</span>
+  <span class="badge" id="count-badge">Loading...</span>
 </div>
 <div class="container">
   <div class="search-bar">
@@ -172,6 +172,51 @@ def utc_now_iso() -> str:
 
 def today_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+# Keywords that map to tags when found in skill content
+TAG_KEYWORDS: dict[str, str] = {
+    "memory": "memory",
+    "agent": "agent",
+    "multi-agent": "multi-agent",
+    "orchestrat": "orchestration",
+    "pipeline": "pipeline",
+    "distill": "distillation",
+    "desktop": "desktop",
+    "cross-platform": "cross-platform",
+    "webview": "webview",
+    "architecture": "architecture",
+    "governance": "governance",
+    "audit": "audit",
+    "security": "security",
+    "benchmark": "benchmark",
+    "plugin": "plugin",
+    "api": "api",
+    "cli": "cli",
+    "dashboard": "dashboard",
+    "typescript": "typescript",
+    "python": "python",
+    "tdd": "tdd",
+    "shared-language": "shared-language",
+    "handoff": "handoff",
+    "alignment": "agent-alignment",
+}
+
+
+def _extract_tags(content: str, fm: dict) -> list[str]:
+    """Extract tags from skill content using keyword matching.
+
+    Scans the full SKILL.md content for known keywords and maps
+    them to standardized tags. Handles case-insensitive matching.
+    """
+    content_lower = content.lower()
+    tags: list[str] = []
+    seen: set[str] = set(fm.get("tags", []))
+    for keyword, tag in TAG_KEYWORDS.items():
+        if keyword in content_lower and tag not in seen:
+            tags.append(tag)
+            seen.add(tag)
+    return tags
 
 
 def slug_to_name(skill_id: str) -> str:
@@ -324,6 +369,18 @@ def cmd_publish(args: argparse.Namespace) -> int:
     if rating in ("E", "F"):
         print(f"⚠️  Rating {rating} — review recommended before publishing.", file=sys.stderr)
 
+    # Auto-tagging from content
+    auto_tags = _extract_tags(content, fm)
+    existing_tags = fm.get("tags", [])
+    merged_tags = list(dict.fromkeys(existing_tags + auto_tags))  # dedupe, preserve order
+    if auto_tags:
+        print(f"   Auto-tags: {', '.join(auto_tags)}")
+
+    # Dependencies from frontmatter
+    dependencies = fm.get("dependencies", []) or fm.get("depends_on", [])
+    if dependencies:
+        print(f"   Dependencies: {', '.join(dependencies)}")
+
     # Add to registry
     registry = load_registry()
     entry = {
@@ -335,11 +392,12 @@ def cmd_publish(args: argparse.Namespace) -> int:
         "rating": rating,
         "score": score,
         "source": f"hermes-registry/{skill_id}",
-        "tags": fm.get("tags", []),
+        "tags": merged_tags,
         "status": "verified" if rating not in ("E", "F") else "needs_review",
         "category": fm.get("category", "general"),
         "added_at": today_str(),
         "license": fm.get("license", "Unknown"),
+        "dependencies": dependencies,
     }
 
     # Update or append
@@ -391,6 +449,9 @@ def cmd_marketplace(args: argparse.Namespace) -> int:
                 "GET /search?q=<query> — search",
                 "GET /stats — marketplace statistics",
                 "GET /health — health check",
+                "GET /dependencies/<id> — resolve skill dependencies",
+                "POST /sync — Plugin Bridge bidirectional sync",
+                "GET /export — full registry export",
             ]
         })
 
@@ -464,6 +525,111 @@ def cmd_marketplace(args: argparse.Namespace) -> int:
     @app.route("/health")
     def health():
         return jsonify({"status": "healthy", "service": "Hermes Skill Marketplace"})
+
+    @app.route("/dependencies/<skill_id>")
+    def skill_dependencies(skill_id):
+        """Resolve skill dependency tree."""
+        registry = load_registry()
+        skills = registry.get("skills", [])
+        target = None
+        for s in skills:
+            if s.get("skill_id") == skill_id:
+                target = s
+                break
+        if not target:
+            return jsonify({"success": False, "error": "Skill not found"}), 404
+
+        deps = target.get("dependencies", [])
+        resolved = []
+        unresolved = []
+        for dep_id in deps:
+            found = False
+            for s in skills:
+                if s.get("skill_id") == dep_id:
+                    resolved.append({"skill_id": dep_id, "name": s.get("name"), "rating": s.get("rating")})
+                    found = True
+                    break
+            if not found:
+                unresolved.append(dep_id)
+
+        return jsonify({
+            "success": True,
+            "skill": {"id": skill_id, "name": target.get("name")},
+            "dependencies": {
+                "declared": deps,
+                "resolved": resolved,
+                "unresolved": unresolved,
+            },
+            "resolved_count": len(resolved),
+            "total_deps": len(deps),
+        })
+
+    @app.route("/sync", methods=["POST"])
+    def plugin_bridge_sync():
+        """Plugin Bridge — bidirectional registry sync endpoint.
+
+        Accepts skill updates from external plugins (OpenClaw, Claude Code, etc.)
+        and merges them into the registry.
+
+        Request body: { "skills": [...], "source": "plugin-name", "action": "add|update|remove" }
+        """
+        data = request.get_json(force=True)
+        incoming = data.get("skills", [])
+        source = data.get("source", "external-plugin")
+        action = data.get("action", "add")
+
+        if not incoming:
+            return jsonify({"success": False, "error": "No skills provided"}), 400
+
+        registry = load_registry()
+        existing = registry.get("skills", [])
+        existing_ids = {s["skill_id"]: i for i, s in enumerate(existing)}
+        changes = {"added": 0, "updated": 0, "removed": 0, "skipped": 0}
+
+        for skill in incoming:
+            sid = skill.get("skill_id")
+            if not sid:
+                changes["skipped"] += 1
+                continue
+
+            if action == "remove":
+                if sid in existing_ids:
+                    existing.pop(existing_ids[sid])
+                    existing_ids = {s["skill_id"]: i for i, s in enumerate(existing)}
+                    changes["removed"] += 1
+                continue
+
+            # Merge: preserve existing fields, overlay incoming
+            skill["source"] = source
+            skill["status"] = "synced"
+            skill.setdefault("added_at", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+
+            if sid in existing_ids:
+                idx = existing_ids[sid]
+                merged = {**existing[idx], **skill}
+                existing[idx] = merged
+                changes["updated"] += 1
+            else:
+                existing.append(skill)
+                changes["added"] += 1
+
+        registry["skills"] = existing
+        registry["total_skills"] = len(existing)
+        registry["updated_at"] = datetime.now(timezone.utc).isoformat()
+        save_registry(registry)
+
+        return jsonify({
+            "success": True,
+            "source": source,
+            "changes": changes,
+            "total_skills": len(existing),
+        })
+
+    @app.route("/export")
+    def export_registry():
+        """Export full registry as downloadable JSON."""
+        registry = load_registry()
+        return jsonify(registry)
 
     print(f"🏪 Hermes Skill Marketplace API")
     print(f"   URL: http://localhost:{port}")
