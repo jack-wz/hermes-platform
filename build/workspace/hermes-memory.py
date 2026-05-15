@@ -1,17 +1,22 @@
 #!/usr/bin/env python3
 """
-hermes-memory.py v1.2 — Team Shared Memory Layer with Namespace Support.
+hermes-memory.py v2.0 — 4-Tier Memory Layer (TencentDB Architecture Distillation).
 
-v1.2 新增:
-  - /api/memory/namespaces — 命名空间隔离（个人/团队/组织）
-  - 治理元数据（access_level, retention, audit_hash）
-  - GateMem 基准兼容导出
+v2.0 新增:
+  - 4-tier pipeline: L0 Conversation → L1 Atom → L2 Scenario → L3 Persona
+  - write_to_tier() / get_tier_entries() / get_tiered_context()
+  - migrate_from_flat() — 将扁平 SHARED_MEMORY.md 迁移为分层结构
+  - 渐进披露：默认注入 L3，需要时 drill-down
+  - 零外部依赖，纯 Python
 
-Changelog from v1.1:
-  - SharedMemory 类增加 namespace 参数
-  - 新增 list_namespaces(), get_namespace_entries()
-  - API 新增 /api/memory/namespaces 端点
-  - 新增 gate_mem_compat_export() 辅助函数
+Architecture distilled from TencentDB-Agent-Memory (1494★).
+See: docs/architecture/memory-v2-tencentdb-distillation.md
+
+Changelog from v1.2:
+  - SharedMemory 保留所有 v1.2 API（向后兼容）
+  - 新增 4-tier 目录结构和读写方法
+  - get_team_context() 改为渐进披露模式
+  - 新增 migrate_from_flat() 迁移工具
 """
 
 from __future__ import annotations
@@ -33,6 +38,22 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent  # -> ~/.hermes/workspace
 DEFAULT_MEMORY_FILE = PROJECT_ROOT / "SHARED_MEMORY.md"
 NAMESPACES_DIR = PROJECT_ROOT / "memory" / "namespaces"
+
+# v2.0 — 4-tier directory structure
+MEMORY_TIERS_DIR = PROJECT_ROOT / "memory" / "tiers"
+TIER_DIRS = {
+    "l0": MEMORY_TIERS_DIR / "l0-conversations",
+    "l1": MEMORY_TIERS_DIR / "l1-atoms",
+    "l2": MEMORY_TIERS_DIR / "l2-scenarios",
+    "l3": MEMORY_TIERS_DIR / "l3-personas",
+}
+
+TIER_META = {
+    "l0": {"name": "Conversation", "desc": "原始对话记录 — 证据源，不可丢失", "format": "md"},
+    "l1": {"name": "Atom", "desc": "原子事实 — 去重提取，快速检索", "format": "jsonl"},
+    "l2": {"name": "Scenario", "desc": "场景块 — 上下文模式，SOP模板", "format": "md"},
+    "l3": {"name": "Persona", "desc": "用户画像 — 长期偏好，少样本注入", "format": "md"},
+}
 
 # ---------------------------------------------------------------------------
 # Entry format helpers
@@ -149,6 +170,233 @@ class SharedMemory:
             "timestamp": timestamp,
             "audit_hash": audit_hash,
         }
+
+    # ── v2.0 — 4-Tier Memory Methods ───────────────────────────────
+
+    def _ensure_tier_dirs(self):
+        """Create all tier directories if they don't exist."""
+        for tier, dir_path in TIER_DIRS.items():
+            dir_path.mkdir(parents=True, exist_ok=True)
+            # Create a README in each tier
+            readme = dir_path / "README.md"
+            if not readme.exists():
+                meta = TIER_META[tier]
+                readme.write_text(
+                    f"# {meta['name']} Tier (L{tier[-1]})\n\n"
+                    f"> {meta['desc']}\n\n"
+                    f"Format: {meta['format']}\n\n"
+                    f"---\n\n",
+                    encoding="utf-8",
+                )
+
+    def write_to_tier(
+        self,
+        tier: str,
+        entry: str,
+        author: str = "unknown",
+        metadata: Optional[dict] = None,
+    ) -> dict:
+        """
+        Write an entry to a specific memory tier.
+
+        Tiers:
+          l0 — raw conversation logs (append-only .md)
+          l1 — atomic facts (jsonl, one JSON object per line)
+          l2 — scenario blocks (structured .md with metadata header)
+          l3 — persona profiles (structured .md with metadata header)
+        """
+        if tier not in TIER_DIRS:
+            return {"success": False, "error": f"Unknown tier: {tier}. Use l0/l1/l2/l3."}
+
+        self._ensure_tier_dirs()
+        tier_dir = TIER_DIRS[tier]
+        entry_id = _make_entry_id()
+        timestamp = _make_timestamp()
+        meta = metadata or {}
+
+        if tier == "l1":
+            # JSONL format — one atomic fact per line
+            atom_file = tier_dir / f"atoms-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
+            atom = json.dumps({
+                "id": entry_id,
+                "timestamp": timestamp,
+                "author": author,
+                "fact": entry.strip(),
+                **meta,
+            }, ensure_ascii=False)
+            with open(atom_file, "a", encoding="utf-8") as f:
+                f.write(atom + "\n")
+            return {
+                "success": True, "entry_id": entry_id, "tier": tier,
+                "author": author, "timestamp": timestamp,
+            }
+
+        elif tier in ("l0", "l2", "l3"):
+            # Markdown format
+            file_name = f"{tier}-{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.md"
+            tier_file = tier_dir / file_name
+            header = f"## [{timestamp}] {author}"
+            meta_block = f"<!-- {json.dumps({'id': entry_id, 'tier': tier, **meta})} -->\n"
+            block = f"{meta_block}{header}\n{entry.strip()}\n\n"
+            with open(tier_file, "a", encoding="utf-8") as f:
+                f.write("\n" + block)
+            return {
+                "success": True, "entry_id": entry_id, "tier": tier,
+                "author": author, "timestamp": timestamp,
+            }
+
+        return {"success": False, "error": f"Unsupported tier format: {tier}"}
+
+    def get_tier_entries(self, tier: str, limit: int = 50) -> list[dict]:
+        """
+        Retrieve entries from a specific tier.
+
+        l0/l2/l3: returns parsed markdown entries
+        l1: returns atom dicts from jsonl files
+
+        Results sorted newest-first.
+        """
+        if tier not in TIER_DIRS:
+            return []
+
+        tier_dir = TIER_DIRS[tier]
+        if not tier_dir.exists():
+            return []
+
+        if tier == "l1":
+            entries = []
+            for jsonl_file in sorted(tier_dir.glob("atoms-*.jsonl"), reverse=True):
+                try:
+                    for line in jsonl_file.read_text(encoding="utf-8").strip().split("\n"):
+                        if line.strip():
+                            entries.append(json.loads(line))
+                except (json.JSONDecodeError, OSError):
+                    continue
+            return entries[:limit]
+
+        elif tier in ("l0", "l2", "l3"):
+            all_entries = []
+            for md_file in sorted(tier_dir.glob(f"{tier}-*.md"), reverse=True):
+                try:
+                    content = md_file.read_text(encoding="utf-8")
+                    parsed = self._parse_entries(content)
+                    for e in parsed:
+                        e["_tier"] = tier
+                        e["_source_file"] = str(md_file.name)
+                    all_entries.extend(parsed)
+                except OSError:
+                    continue
+            return all_entries[:limit]
+
+        return []
+
+    def get_tiered_context(self) -> str:
+        """
+        Progressive disclosure context for AI agent prompt injection.
+
+        Prioritizes:
+        1. L3 Persona (highest signal, always injected)
+        2. L2 Scenario (if relevant to current task)
+        3. L0/L1 (summary only — drill-down via entry_id)
+        """
+        self._ensure_tier_dirs()
+        parts = ["[Hermes Memory v2 — 4-Tier Progressive Context]\n"]
+
+        # L3 — Persona (always injected, high signal)
+        l3_entries = self.get_tier_entries("l3", limit=5)
+        if l3_entries:
+            parts.append("## 🧠 L3 Persona — 长期偏好与画像")
+            for e in l3_entries:
+                author = e.get("author", "?")
+                body = e.get("body", "").strip()
+                parts.append(f"  [{e.get('timestamp', '?')}] {author}")
+                for line in body.split("\n")[:10]:
+                    parts.append(f"    {line}")
+            parts.append("")
+
+        # L2 — Scenario (recent context patterns)
+        l2_entries = self.get_tier_entries("l2", limit=3)
+        if l2_entries:
+            parts.append("## 📋 L2 Scenario — 上下文模式与 SOP")
+            for e in l2_entries:
+                author = e.get("author", "?")
+                body = e.get("body", "").strip()
+                parts.append(f"  [{e.get('timestamp', '?')}] {author}")
+                for line in body.split("\n")[:8]:
+                    parts.append(f"    {line}")
+            parts.append("")
+
+        # L1 — Atom summary (count only, details on demand)
+        l1_count = len(self.get_tier_entries("l1", limit=1000))
+        l0_count = len(self.get_tier_entries("l0", limit=1000))
+        if l1_count or l0_count:
+            parts.append(f"📊 L1 Atoms: {l1_count} facts | L0 Conversations: {l0_count} sessions")
+            parts.append("   (use search_memory() or get_tier_entries() for drill-down)")
+            parts.append("")
+
+        # Fall back to flat memory if tiers are empty and flat exists
+        if not l3_entries and not l2_entries and self.memory_file.exists():
+            parts.append("---")
+            parts.append("(4-tier memory is empty — showing legacy flat memory)")
+            return "\n".join(parts) + "\n" + self.get_team_context()
+
+        parts.append("⚠️  Check L3 Persona for user preferences before executing.")
+        parts.append("    Drill down with get_tier_entries('l1') for specific facts.")
+        return "\n".join(parts)
+
+    def migrate_from_flat(self) -> dict:
+        """
+        Migrate entries from flat SHARED_MEMORY.md into the 4-tier structure.
+
+        Heuristic:
+        - Human corrections → L3 Persona
+        - Agent corrections/learnings → L2 Scenario
+        - Everything else → L0 Conversation (preserve original)
+        """
+        self._ensure_tier_dirs()
+        if not self.memory_file.exists():
+            return {"success": False, "error": "Flat memory file not found"}
+
+        entries = self.get_all_entries()
+        stats = {"l0": 0, "l2": 0, "l3": 0, "total": len(entries)}
+
+        for e in entries:
+            author = e.get("author", "")
+            body = e.get("body", "").strip()
+            timestamp = e.get("timestamp", "")
+
+            if author.startswith("human:") or "CEO" in author:
+                tier = "l3"
+            elif "修正" in body or "correct" in body.lower() or "learn" in body.lower():
+                tier = "l2"
+            else:
+                tier = "l0"
+
+            self.write_to_tier(
+                tier=tier,
+                entry=body,
+                author=author,
+                metadata={"migrated_from": "flat", "original_ts": timestamp},
+            )
+            stats[tier] += 1
+
+        return {"success": True, "migrated": stats["total"], "by_tier": stats}
+
+    def list_tiers(self) -> list[dict]:
+        """List all tiers and their entry counts."""
+        self._ensure_tier_dirs()
+        result = []
+        for tier_id in ["l0", "l1", "l2", "l3"]:
+            entries = self.get_tier_entries(tier_id, limit=10000)
+            result.append({
+                "id": tier_id,
+                "name": TIER_META[tier_id]["name"],
+                "desc": TIER_META[tier_id]["desc"],
+                "format": TIER_META[tier_id]["format"],
+                "entry_count": len(entries),
+                "dir": str(TIER_DIRS[tier_id]),
+            })
+        return result
 
     # ── GateMem compatibility ────────────────────────────────────
 
