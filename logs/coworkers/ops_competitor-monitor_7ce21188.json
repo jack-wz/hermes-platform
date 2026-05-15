@@ -1,0 +1,17 @@
+{
+  "run_id": "7ce21188",
+  "coworker_id": "ops/competitor-monitor",
+  "run_name": "竞品监控员",
+  "trigger_reason": "manual",
+  "started_at": "2026-05-15T10:25:03.350277+00:00",
+  "completed_at": "2026-05-15T10:25:03.350343+00:00",
+  "duration_ms": 0,
+  "results": [
+    {
+      "skill_id": "monitoring/cronalytics",
+      "status": "error",
+      "error": "Skill file not found"
+    }
+  ],
+  "receipts": []
+}

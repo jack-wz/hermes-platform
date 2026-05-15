@@ -399,6 +399,47 @@ class SharedMemory:
             })
         return result
 
+    # ── Phase C — Symbolic Memory Compression ───────────────────────
+
+    def compress_session(
+        self,
+        l0_path: Optional[Path] = None,
+        l0_text: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> dict:
+        """Compress an L0 session into a Mermaid symbol graph.
+
+        Phase C of Memory v2 (TencentDB architecture).
+        Reduces token consumption by 30-50% on tool-heavy sessions.
+
+        Returns dict with:
+          - mermaid: Mermaid flowchart string
+          - summary_text: compressed text summary
+          - token_stats: raw vs compressed token estimates
+          - node_ids: list of node IDs for drill-down
+        """
+        try:
+            from symbolic_memory import SymbolicMemory
+        except ImportError:
+            return {"success": False, "error": "symbolic_memory module not found"}
+
+        sm = SymbolicMemory()
+        graph = sm.compress_session(
+            session_path=l0_path,
+            session_text=l0_text,
+            session_id=session_id,
+        )
+
+        return {
+            "success": True,
+            "mermaid": graph.to_mermaid(),
+            "summary_text": graph.to_summary_text(),
+            "token_stats": graph.token_stats(),
+            "node_ids": [n.node_id for n in graph.nodes],
+            "node_count": len(graph.nodes),
+            "compression_ratio": graph.compression_ratio(),
+        }
+
     # ── GateMem compatibility ────────────────────────────────────
 
     def gate_mem_compat_export(self) -> dict:
@@ -1212,6 +1253,52 @@ def cmd_distill(mem: SharedMemory, stage: Optional[str] = None) -> None:
         print("   echo '## [2026-05-15 10:00] user\\ntest content' >> memory/tiers/l0-conversations/l0-2026-05-15.md")
 
 
+def cmd_compress(mem: SharedMemory, path: Optional[str] = None,
+                 text: Optional[str] = None, stats_only: bool = False,
+                 mermaid_only: bool = False) -> None:
+    """Symbolic compression — L0 session → Mermaid graph."""
+    if text:
+        result = mem.compress_session(l0_text=text, session_id="inline")
+    elif path:
+        l0_path = Path(path)
+        if not l0_path.exists():
+            print(f"✗ File not found: {path}", file=sys.stderr)
+            sys.exit(1)
+        result = mem.compress_session(l0_path=l0_path)
+    else:
+        # Default: compress the most recent L0 file
+        l0_dir = TIER_DIRS["l0"]
+        if not l0_dir.exists():
+            print("✗ L0 directory does not exist. Create L0 content first.", file=sys.stderr)
+            sys.exit(1)
+        l0_files = sorted(l0_dir.glob("l0-*.md"), reverse=True)
+        if not l0_files:
+            print("✗ No L0 session files found.", file=sys.stderr)
+            sys.exit(1)
+        result = mem.compress_session(l0_path=l0_files[0])
+
+    if not result["success"]:
+        print(f"✗ Compression failed: {result.get('error', 'unknown')}", file=sys.stderr)
+        sys.exit(1)
+
+    if stats_only:
+        stats = result["token_stats"]
+        print(f"Session: {result.get('node_count', 0)} tool calls")
+        print(f"Raw:      {stats['raw_chars']:,} chars (~{stats['raw_tokens_est']:,} tokens)")
+        print(f"Compressed: {stats['compressed_chars']:,} chars (~{stats['compressed_tokens_est']:,} tokens)")
+        print(f"Saved:    {stats['savings_tokens_est']:,} tokens ({stats['compression_ratio']:.0%} savings)")
+        return
+
+    if mermaid_only:
+        print(result["mermaid"])
+        return
+
+    print(result["summary_text"])
+    print()
+    print("── Mermaid Graph ──")
+    print(result["mermaid"])
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Hermes Team Shared Memory — correct once, all agents learn",
@@ -1255,6 +1342,12 @@ Examples:
     p_distill = sub.add_parser("distill", help="Run the memory distillation pipeline (L0→L1→L2→L3)")
     p_distill.add_argument("--status", action="store_true", help="Show distillation readiness")
 
+    p_compress = sub.add_parser("compress", help="Symbolic compression — L0 session → Mermaid graph")
+    p_compress.add_argument("path", nargs="?", help="Path to L0 session file")
+    p_compress.add_argument("--text", "-t", help="Compress inline text instead of a file")
+    p_compress.add_argument("--stats", action="store_true", help="Show compression stats only")
+    p_compress.add_argument("--mermaid", action="store_true", help="Output Mermaid graph only")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1291,6 +1384,9 @@ Examples:
         seed_shared_memory()
     elif args.command == "distill":
         cmd_distill(mem, stage="status" if args.status else None)
+    elif args.command == "compress":
+        cmd_compress(mem, path=args.path, text=args.text,
+                     stats_only=args.stats, mermaid_only=args.mermaid)
     else:
         parser.print_help()
         sys.exit(1)
