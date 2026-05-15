@@ -20,13 +20,21 @@ Install: pip install hermes-workspace
 """
 
 import argparse
+import importlib.resources
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-PACKAGE_DIR = Path(__file__).resolve().parent.parent
+# Resolve package root: works in both dev (repo root) and installed (site-packages) mode
+_PKG_FILE = Path(__file__).resolve()
+if (_PKG_FILE.parent / "build").exists():
+    # Dev mode: running from repo root
+    PACKAGE_DIR = _PKG_FILE.parent
+else:
+    # Installed mode: find the repo root relative to site-packages
+    PACKAGE_DIR = _PKG_FILE.parent.parent.parent.parent  # site-packages/hermes_cli.py → project root
 BUILD_DIR = PACKAGE_DIR / "build"
 REGISTRY_FILE = PACKAGE_DIR / "registry" / "skills.json"
 

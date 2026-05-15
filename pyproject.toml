@@ -1,15 +1,15 @@
 [build-system]
 requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-workspace"
 version = "2.0.0"
-description = "Open-source AI team workspace — AI coworkers, shared memory, security audit, Docker deploy"
+description = "Open-source AI team workspace — AI coworkers, shared memory, Kanban dashboard, skill marketplace, security audit"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "Hermes Workspace", email = "jack-wz@users.noreply.github.com"}]
-keywords = ["ai", "agent", "workspace", "skill", "automation", "multi-agent", "mcp"]
+keywords = ["ai", "agent", "workspace", "skill", "automation", "multi-agent", "mcp", "kanban", "marketplace"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -39,13 +39,13 @@ Repository = "https://github.com/jack-wz/hermes-platform"
 Issues = "https://github.com/jack-wz/hermes-platform/issues"
 
 [project.scripts]
-hermes = "hermes_cli:main"
+hermes-ws = "hermes_cli:main"
 
 [tool.setuptools]
-packages = ["hermes_cli"]
+py-modules = ["hermes_cli"]
 
 [tool.setuptools.package-data]
-hermes_cli = ["*.py"]
+"*" = ["build/**/*.py", "build/**/*.md", "registry/*.json", "registry/**/*.SKILL.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
