@@ -562,6 +562,175 @@ def api_kanban_stats():
 
 
 # ---------------------------------------------------------------------------
+# Kanban Write API — create, update, move tasks
+# ---------------------------------------------------------------------------
+
+@app.route("/api/kanban/tasks", methods=["POST"])
+def api_kanban_create():
+    """Create a new kanban task."""
+    try:
+        data = request.get_json(force=True)
+        title = data.get("title", "").strip()
+        if not title:
+            return jsonify({"success": False, "error": "title is required"}), 400
+
+        import uuid
+        task_id = data.get("id") or f"t-{uuid.uuid4().hex[:8]}"
+        description = data.get("description", "")
+        assignee = data.get("assignee", "")
+        status = data.get("status", "todo")
+        priority = data.get("priority", 2)
+        board = data.get("board", "execution")
+        workspace_kind = data.get("workspaceKind", "")
+        created_by = data.get("createdBy", "api")
+        now = datetime.utcnow().isoformat()
+
+        conn = _kanban_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO tasks (id, title, description, assignee, status, priority, board,
+               workspace_kind, created_by, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (task_id, title, description, assignee, status, priority, board,
+             workspace_kind, created_by, now, now),
+        )
+        # Creation event
+        cur.execute(
+            "INSERT INTO task_events (task_id, event_type, new_value, created_by, created_at) "
+            "VALUES (?, 'created', ?, ?, ?)",
+            (task_id, status, created_by, now),
+        )
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "task": {"id": task_id, "title": title, "status": status},
+        }), 201
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/kanban/tasks/<task_id>", methods=["PATCH"])
+def api_kanban_update(task_id):
+    """Update a kanban task — status, assignee, priority, title, description."""
+    try:
+        data = request.get_json(force=True)
+        conn = _kanban_conn()
+        cur = conn.cursor()
+
+        # Verify task exists
+        cur.execute("SELECT id, status, assignee FROM tasks WHERE id = ?", (task_id,))
+        existing = cur.fetchone()
+        if not existing:
+            conn.close()
+            return jsonify({"success": False, "error": "Task not found"}), 404
+
+        old_status = existing["status"]
+        old_assignee = existing["assignee"]
+        now = datetime.utcnow().isoformat()
+        updates = []
+        params = []
+        events = []
+
+        # Status change
+        if "status" in data:
+            new_status = data["status"]
+            updates.append("status = ?")
+            params.append(new_status)
+            if new_status != old_status:
+                if new_status == "in_progress" and not existing["started_at"]:
+                    updates.append("started_at = ?")
+                    params.append(now)
+                if new_status == "done":
+                    updates.append("completed_at = ?")
+                    params.append(now)
+                events.append(("status_change", old_status, new_status))
+
+        # Assignee change
+        if "assignee" in data:
+            new_assignee = data["assignee"]
+            updates.append("assignee = ?")
+            params.append(new_assignee)
+            if new_assignee != old_assignee:
+                events.append(("assignee_change", old_assignee, new_assignee))
+
+        # Priority change
+        if "priority" in data:
+            updates.append("priority = ?")
+            params.append(data["priority"])
+            events.append(("priority_change", str(existing.get("priority", "")), str(data["priority"])))
+
+        # Title / description
+        for field in ["title", "description"]:
+            if field in data:
+                updates.append(f"{field} = ?")
+                params.append(data[field])
+
+        if not updates:
+            conn.close()
+            return jsonify({"success": False, "error": "No fields to update"}), 400
+
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(task_id)
+
+        cur.execute(
+            f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?",
+            params,
+        )
+
+        # Record events
+        for evt in events:
+            cur.execute(
+                "INSERT INTO task_events (task_id, event_type, old_value, new_value, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (task_id, evt[0], evt[1], evt[2], now),
+            )
+
+        conn.commit()
+
+        # Return updated task
+        cur.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+        task = _row_to_dict(cur.fetchone())
+        conn.close()
+
+        return jsonify({"success": True, "task": task})
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/kanban/tasks/<task_id>/comments", methods=["POST"])
+def api_kanban_add_comment(task_id):
+    """Add a comment to a kanban task."""
+    try:
+        data = request.get_json(force=True)
+        body = data.get("body", "").strip()
+        if not body:
+            return jsonify({"success": False, "error": "body is required"}), 400
+
+        author = data.get("author", "api")
+        now = datetime.utcnow().isoformat()
+
+        conn = _kanban_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO task_comments (task_id, author, body, created_at) VALUES (?, ?, ?, ?)",
+            (task_id, author, body, now),
+        )
+        conn.commit()
+        comment_id = cur.lastrowid
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "comment": {"id": comment_id, "task_id": task_id, "author": author, "body": body},
+        }), 201
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Web Dashboard (single HTML page)
 # ---------------------------------------------------------------------------
 
