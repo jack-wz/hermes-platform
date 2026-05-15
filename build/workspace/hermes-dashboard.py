@@ -53,6 +53,7 @@ SHARED_MEMORY_FILE = PROJECT_ROOT / "SHARED_MEMORY.md"
 LOGS_DIR = PROJECT_ROOT / "logs" / "coworkers"
 COWORKER_ENGINE_SCRIPT = SCRIPT_DIR / "hermes-coworker.py"
 MEMORY_SCRIPT = SCRIPT_DIR / "hermes-memory.py"
+KANBAN_DB = Path.home() / ".hermes" / "kanban.db"
 
 # ---------------------------------------------------------------------------
 # Flask app
@@ -418,6 +419,149 @@ def api_activity():
 
 
 # ---------------------------------------------------------------------------
+# Kanban API — reads from ~/.hermes/kanban.db (Hermes kernel-managed SQLite)
+# ---------------------------------------------------------------------------
+
+def _kanban_conn():
+    """Get a connection to the kanban database with WAL mode for concurrent reads."""
+    import sqlite3
+    conn = sqlite3.connect(str(KANBAN_DB), timeout=5)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=3000")
+    return conn
+
+
+def _row_to_dict(row):
+    """Convert sqlite3.Row to plain dict with camelCase keys."""
+    if row is None:
+        return {}
+    d = dict(row)
+    key_map = {
+        "created_at": "createdAt", "started_at": "startedAt",
+        "completed_at": "completedAt", "created_by": "createdBy",
+        "workspace_kind": "workspaceKind", "workspace_path": "workspacePath",
+        "claim_lock": "claimLock", "claim_expires": "claimExpires",
+        "idempotency_key": "idempotencyKey", "consecutive_failures": "consecutiveFailures",
+        "worker_pid": "workerPid", "last_failure_error": "lastFailureError",
+        "max_runtime_seconds": "maxRuntimeSeconds", "last_heartbeat_at": "lastHeartbeatAt",
+        "current_run_id": "currentRunId", "workflow_template_id": "workflowTemplateId",
+        "current_step_key": "currentStepKey", "max_retries": "maxRetries",
+    }
+    result = {}
+    for k, v in d.items():
+        new_key = key_map.get(k, k)
+        result[new_key] = v
+    return result
+
+
+@app.route("/api/kanban/tasks", methods=["GET"])
+def api_kanban_tasks():
+    """List all kanban tasks, grouped by status column."""
+    status_filter = request.args.get("status", "")
+    assignee_filter = request.args.get("assignee", "")
+    try:
+        conn = _kanban_conn()
+        cur = conn.cursor()
+        query = "SELECT id, title, assignee, status, priority, created_at, workspace_kind FROM tasks"
+        params = []
+        conditions = []
+        if status_filter:
+            conditions.append("status = ?")
+            params.append(status_filter)
+        if assignee_filter:
+            conditions.append("assignee = ?")
+            params.append(assignee_filter)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        query += " ORDER BY priority DESC, created_at DESC"
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        conn.close()
+        tasks = [_row_to_dict(r) for r in rows]
+        columns = {
+            "todo": [], "ready": [], "in_progress": [], "blocked": [], "done": [], "archived": []
+        }
+        # Map alternate status values to canonical columns
+        status_map = {"running": "in_progress"}
+        for t in tasks:
+            col = t.get("status", "todo")
+            col = status_map.get(col, col)
+            if col not in columns:
+                col = "todo"
+            columns[col].append(t)
+        return jsonify({
+            "success": True,
+            "total": len(tasks),
+            "columns": columns,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/kanban/tasks/<task_id>", methods=["GET"])
+def api_kanban_task_detail(task_id):
+    """Get a single kanban task with comments and events."""
+    try:
+        conn = _kanban_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.close()
+            return jsonify({"success": False, "error": "Task not found"}), 404
+        task = _row_to_dict(row)
+        cur.execute(
+            "SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC",
+            (task_id,))
+        comments = [_row_to_dict(r) for r in cur.fetchall()]
+        cur.execute(
+            "SELECT * FROM task_events WHERE task_id = ? ORDER BY created_at DESC LIMIT 20",
+            (task_id,))
+        events = [_row_to_dict(r) for r in cur.fetchall()]
+        conn.close()
+        return jsonify({
+            "success": True,
+            "task": task,
+            "comments": comments,
+            "events": events,
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+@app.route("/api/kanban/stats", methods=["GET"])
+def api_kanban_stats():
+    """Get kanban board statistics."""
+    try:
+        conn = _kanban_conn()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT status, COUNT(*) as cnt FROM tasks
+            WHERE status != 'archived'
+            GROUP BY status
+        """)
+        rows = cur.fetchall()
+        conn.close()
+        stats = {row["status"]: row["cnt"] for row in rows}
+        total = sum(stats.values())
+        return jsonify({
+            "success": True,
+            "total": total,
+            "byStatus": stats,
+            "columns": {
+                "todo": stats.get("todo", 0),
+                "ready": stats.get("ready", 0),
+                "in_progress": stats.get("in_progress", 0),
+                "blocked": stats.get("blocked", 0),
+                "done": stats.get("done", 0),
+            },
+        })
+    except Exception as exc:
+        return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
 # Web Dashboard (single HTML page)
 # ---------------------------------------------------------------------------
 
@@ -648,10 +792,99 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
   /* Responsive */
+  /* Kanban Board */
+  .kanban-board {
+    display: flex; gap: 12px; overflow-x: auto;
+    padding: 8px 0; min-height: 200px;
+  }
+  .kanban-column {
+    flex: 1; min-width: 180px; max-width: 280px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex; flex-direction: column;
+  }
+  .kanban-col-header {
+    padding: 10px 12px; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .5px;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .kanban-col-header .count {
+    font-size: 11px; color: var(--text-muted);
+    background: var(--bg-card); padding: 1px 6px; border-radius: 10px;
+  }
+  .kanban-col-todo .kanban-col-header { color: var(--text-muted); }
+  .kanban-col-ready .kanban-col-header { color: var(--blue); }
+  .kanban-col-progress .kanban-col-header { color: var(--yellow); }
+  .kanban-col-blocked .kanban-col-header { color: var(--red); }
+  .kanban-col-done .kanban-col-header { color: var(--accent); }
+  .kanban-cards {
+    padding: 8px; display: flex; flex-direction: column; gap: 6px;
+    flex: 1; overflow-y: auto; max-height: 400px;
+  }
+  .kanban-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; cursor: pointer;
+    transition: border-color .15s;
+    font-size: 12px; line-height: 1.5;
+  }
+  .kanban-card:hover { border-color: var(--accent-dim); }
+  .kanban-card-title {
+    font-weight: 600; margin-bottom: 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .kanban-card-meta {
+    font-size: 11px; color: var(--text-muted);
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
+  }
+  .kanban-card-assignee {
+    padding: 1px 6px; border-radius: 4px;
+    background: rgba(88,166,255,.1); color: var(--blue);
+    font-size: 10px;
+  }
+  .kanban-card-priority { font-weight: 600; }
+  .kanban-card-priority.p0 { color: var(--red); }
+  .kanban-card-priority.p1 { color: var(--yellow); }
+  .kanban-card-priority.p2 { color: var(--text-muted); }
+
+  /* Kanban detail drawer */
+  .kanban-drawer {
+    position: fixed; top: 0; right: 0; width: 380px; height: 100vh;
+    background: var(--bg-card); border-left: 1px solid var(--border);
+    z-index: 60; transform: translateX(100%);
+    transition: transform .2s ease;
+    padding: 20px; overflow-y: auto;
+    box-shadow: -4px 0 16px rgba(0,0,0,.4);
+  }
+  .kanban-drawer.open { transform: translateX(0); }
+  .kanban-drawer h3 { font-size: 16px; margin-bottom: 12px; }
+  .kanban-drawer .close-btn {
+    position: absolute; top: 12px; right: 16px;
+    background: none; border: none; color: var(--text-muted);
+    font-size: 20px; cursor: pointer;
+  }
+  .kanban-drawer .close-btn:hover { color: var(--text); }
+  .kanban-detail-row { margin-bottom: 12px; }
+  .kanban-detail-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+  .kanban-detail-value { font-size: 13px; }
+  .kanban-detail-body {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+    font-size: 12px; line-height: 1.6; white-space: pre-wrap;
+    max-height: 200px; overflow-y: auto;
+    font-family: monospace; color: var(--text-muted);
+  }
+
   @media (max-width: 768px) {
     .grid-2 { grid-template-columns: 1fr; }
     .container { padding: 16px; }
     .header { padding: 12px 16px; }
+    .kanban-board { flex-direction: column; }
+    .kanban-column { max-width: none; min-width: 0; }
+    .kanban-drawer { width: 100vw; }
   }
 </style>
 </head>
@@ -679,6 +912,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="stat-box"><span class="stat-value" id="stat-skills">-</span><span class="stat-label">Skills</span></div>
   <div class="stat-box"><span class="stat-value" id="stat-memory">-</span><span class="stat-label">Memory Entries</span></div>
   <div class="stat-box"><span class="stat-value" id="stat-logs">-</span><span class="stat-label">Executions</span></div>
+  <div class="stat-box"><span class="stat-value" id="stat-kanban">-</span><span class="stat-label">Kanban Tasks</span></div>
 </div>
 
 <div class="grid grid-2">
@@ -711,6 +945,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div id="memory-panel"><div class="empty">Loading memory...</div></div>
   </div>
 
+  <!-- Kanban Board -->
+  <div class="card card-full">
+    <div class="card-header">
+      <span class="card-title"><span class="icon">📋</span>Kanban Board</span>
+      <span class="schedule-tag" id="kanban-count">0 tasks</span>
+    </div>
+    <div class="kanban-board" id="kanban-board">
+      <div class="empty" style="grid-column:1/-1">Loading kanban...</div>
+    </div>
+  </div>
+
 </div>
 </main>
 
@@ -741,6 +986,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <!-- Toast -->
 <div class="toast" id="toast"></div>
 
+<!-- Kanban Task Detail Drawer -->
+<div class="kanban-drawer" id="kanban-drawer">
+  <button class="close-btn" onclick="closeKanbanDrawer()">&times;</button>
+  <div id="kanban-detail-content"></div>
+</div>
+
 <script>
 // ---------------------------------------------------------------------------
 // Dashboard logic (vanilla JS, no framework)
@@ -764,6 +1015,7 @@ function loadDashboard() {
   loadCoworkers();
   loadActivity();
   loadMemory();
+  loadKanban();
 }
 
 function loadStatus() {
@@ -774,6 +1026,7 @@ function loadStatus() {
       document.getElementById('stat-skills').textContent = d.stats.skills_total;
       document.getElementById('stat-memory').textContent = d.stats.memory_entries;
       document.getElementById('stat-logs').textContent = d.stats.execution_logs;
+      loadKanbanStats();
     })
     .catch(function(){});
 }
@@ -956,6 +1209,88 @@ function openViewRegistry() {
     .catch(function(){});
 }
 
+function loadKanbanStats() {
+  fetch(API + '/kanban/stats')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (d.success) {
+        document.getElementById('stat-kanban').textContent = d.total;
+      }
+    })
+    .catch(function(){});
+}
+
+function loadKanban() {
+  fetch(API + '/kanban/tasks')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var board = document.getElementById('kanban-board');
+      document.getElementById('kanban-count').textContent = d.total + ' tasks';
+      if (!d.total) {
+        board.innerHTML = '<div class="empty">No kanban tasks — create one via <code>kanban_create</code> or the Hermes CLI</div>';
+        return;
+      }
+      var cols = d.columns;
+      var colDefs = [
+        {key: 'todo', label: '📥 To Do', cls: 'kanban-col-todo'},
+        {key: 'ready', label: '✅ Ready', cls: 'kanban-col-ready'},
+        {key: 'in_progress', label: '🔄 In Progress', cls: 'kanban-col-progress'},
+        {key: 'blocked', label: '🚫 Blocked', cls: 'kanban-col-blocked'},
+        {key: 'done', label: '✔️ Done', cls: 'kanban-col-done'},
+      ];
+      board.innerHTML = colDefs.map(function(cd){
+        var tasks = cols[cd.key] || [];
+        var cardsHtml = tasks.length
+          ? tasks.map(function(t){
+              var prioCls = t.priority <= 0 ? 'p0' : t.priority <= 1 ? 'p1' : 'p2';
+              var age = t.createdAt ? Math.floor((Date.now() - t.createdAt*1000) / 3600000) + 'h ago' : '';
+              return '<div class="kanban-card" onclick="openKanbanTask(\'' + esc(t.id) + '\')">' +
+                '<div class="kanban-card-title">' + esc(t.title) + '</div>' +
+                '<div class="kanban-card-meta">' +
+                  '<span class="kanban-card-assignee">' + esc(t.assignee || 'unassigned') + '</span>' +
+                  '<span class="kanban-card-priority ' + prioCls + '">P' + (t.priority||0) + '</span>' +
+                '</div>' +
+                (age ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">' + age + '</div>' : '') +
+              '</div>';
+            }).join('')
+          : '<div class="empty" style="padding:12px;font-size:11px">—</div>';
+        return '<div class="kanban-column ' + cd.cls + '">' +
+          '<div class="kanban-col-header">' + cd.label + '<span class="count">' + tasks.length + '</span></div>' +
+          '<div class="kanban-cards">' + cardsHtml + '</div>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function(){});
+}
+
+function openKanbanTask(taskId) {
+  fetch(API + '/kanban/tasks/' + taskId)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.success) { showToast('Task not found', 'error'); return; }
+      var t = d.task;
+      var statusLabels = {
+        todo: '📥 To Do', ready: '✅ Ready', in_progress: '🔄 In Progress',
+        blocked: '🚫 Blocked', done: '✔️ Done', archived: '📦 Archived'
+      };
+      var created = t.createdAt ? new Date(t.createdAt*1000).toLocaleString() : '—';
+      var html = '<h3>' + esc(t.title) + '</h3>' +
+        '<div class="kanban-detail-row"><div class="kanban-detail-label">Status</div><div class="kanban-detail-value">' + (statusLabels[t.status] || t.status) + '</div></div>' +
+        '<div class="kanban-detail-row"><div class="kanban-detail-label">Assignee</div><div class="kanban-detail-value">' + esc(t.assignee || 'unassigned') + ' <span class="kanban-card-priority p' + (t.priority<=0?'0':t.priority<=1?'1':'2') + '">P' + (t.priority||0) + '</span></div></div>' +
+        '<div class="kanban-detail-row"><div class="kanban-detail-label">Created</div><div class="kanban-detail-value">' + created + '</div></div>' +
+        '<div class="kanban-detail-row"><div class="kanban-detail-label">ID</div><div class="kanban-detail-value" style="font-family:monospace;font-size:11px">' + esc(t.id) + '</div></div>' +
+        (t.body ? '<div class="kanban-detail-row"><div class="kanban-detail-label">Description</div><div class="kanban-detail-body">' + esc(t.body || '') + '</div></div>' : '') +
+        (t.workspaceKind ? '<div class="kanban-detail-row"><div class="kanban-detail-label">Workspace</div><div class="kanban-detail-value">' + esc(t.workspaceKind) + (t.workspacePath ? ' → ' + esc(t.workspacePath) : '') + '</div></div>' : '');
+      document.getElementById('kanban-detail-content').innerHTML = html;
+      document.getElementById('kanban-drawer').classList.add('open');
+    })
+    .catch(function(){ showToast('Network error', 'error'); });
+}
+
+function closeKanbanDrawer() {
+  document.getElementById('kanban-drawer').classList.remove('open');
+}
+
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -986,4 +1321,4 @@ if __name__ == "__main__":
     print(f"   Dashbord URL: http://localhost:5002")
     print(f"   API Base:     http://localhost:5002/api")
     print()
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    app.run(host="0.0.0.0", port=5002, debug=False)
