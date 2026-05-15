@@ -1,0 +1,19 @@
+{
+  "run_id": "66f447a5",
+  "coworker_id": "ops/competitor-monitor",
+  "run_name": "竞品监控员",
+  "trigger_reason": "api",
+  "started_at": "2026-05-15T10:11:48.992232+00:00",
+  "completed_at": "2026-05-15T10:11:49.068253+00:00",
+  "duration_ms": 76,
+  "exit_code": 0,
+  "stdout": "🚀 Running coworker: ops/competitor-monitor\n   Start: 2026-05-15T10:11:49.063330+00:00\n\n   Run ID: 364236e5\n   Duration: 0ms\n   Skills executed: 1\n\n   ✗ monitoring/cronalytics: error\n\n   Receipts: 0 generated\n",
+  "stderr": "",
+  "results": [
+    {
+      "skill_id": "monitoring/cronalytics",
+      "status": "completed",
+      "note": "Spawned via dashboard API"
+    }
+  ]
+}

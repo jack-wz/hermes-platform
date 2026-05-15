@@ -22,6 +22,7 @@ Changelog from v1.2:
 from __future__ import annotations
 
 import argparse
+import collections
 import hashlib
 import json
 import re
@@ -629,6 +630,465 @@ class SharedMemory:
 
 
 # ---------------------------------------------------------------------------
+# Phase B — Distillation Pipeline (L0 → L1 → L2 → L3)
+# Architecture distilled from TencentDB-Agent-Memory (1494★).
+# Pure Python, zero external deps. Heuristic extraction for offline use;
+# plug in LLM-based extraction via extract_facts_llm() for production.
+# ---------------------------------------------------------------------------
+
+# ── Fact extraction patterns (heuristic) ─────────────────────────
+
+FACT_PATTERNS: list[tuple[re.Pattern, str]] = [
+    # (pattern, fact_type)
+    (re.compile(r"修正[:：](.+)"), "correction"),
+    (re.compile(r"(?:必须|禁止|不允许|不应|切勿)(.+)"), "constraint"),
+    (re.compile(r"偏好|prefer(?:ence)?|喜欢|习惯[:：]?\s*(.+)", re.IGNORECASE), "preference"),
+    (re.compile(r"(?:已确认|确认|决定|定调)[:：](.+)"), "decision"),
+    (re.compile(r"(?:目标|定位|策略)[:：]\s*(.+)"), "strategy"),
+    (re.compile(r"https?://[^\s)\]]+"), "url"),
+    (re.compile(r"(?:/~)?[/\w.-]+/[\w.-]+\.(?:py|md|json|yml|yaml|toml|sh|ts|js|tsx|jsx)\b"), "file_path"),
+    (re.compile(r"(?:agent|bot|team|board|pipeline)[_.-]?\w+\s+(?:is|现在|currently)\s+(.+)", re.IGNORECASE), "state"),
+    (re.compile(r"\b(\d+(?:\.\d+)?)\s*(?:★|star|commit|PR|issue|hour|day|week|month)\b", re.IGNORECASE), "metric"),
+    (re.compile(r"[""「](.+?)[""」](?:很重要|是关键|需要注意|必须记住)"), "quote_key"),
+    (re.compile(r"记住[:：]\s*(.+)"), "reminder"),
+]
+
+
+def _extract_facts_from_text(text: str, source_id: str = "") -> list[dict]:
+    """Extract atomic facts from a text block using heuristic patterns.
+
+    Returns list of {type, text, source, confidence} dicts.
+    """
+    facts: list[dict] = []
+    seen_spans: set[tuple[int, int]] = set()
+
+    for pattern, fact_type in FACT_PATTERNS:
+        for m in pattern.finditer(text):
+            span = (m.start(), m.end())
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            fact_text = m.group(0).strip()
+            # For patterns with capture groups, use the captured content as the fact
+            if m.lastindex and m.lastindex >= 1:
+                for g in range(1, m.lastindex + 1):
+                    if m.group(g):
+                        fact_text = m.group(g).strip()
+                        break
+            # Assign confidence: explicit patterns → higher confidence
+            confidence = {
+                "correction": 0.90,
+                "constraint": 0.92,
+                "preference": 0.85,
+                "decision": 0.88,
+                "strategy": 0.80,
+                "reminder": 0.87,
+                "url": 0.95,
+                "file_path": 0.75,
+                "state": 0.60,
+                "metric": 0.65,
+                "quote_key": 0.70,
+            }.get(fact_type, 0.50)
+
+            facts.append({
+                "type": fact_type,
+                "text": fact_text,
+                "source": source_id,
+                "confidence": confidence,
+            })
+
+    return facts
+
+
+def _keyword_overlap(a: dict, b: dict) -> int:
+    """Count shared significant keywords between two atoms.
+
+    Handles CJK characters (2+ chars) and ASCII words (3+ chars).
+    """
+    stop_words = {"the", "and", "for", "from", "with", "this", "that",
+                   "have", "been", "was", "are", "has", "not", "but",
+                   "can", "all", "will", "just", "now", "its", "also",
+                   "了", "的", "是", "在", "有", "和", "不", "也", "都", "就",
+                   "要", "会", "可", "以", "及", "或", "被", "让", "把", "对",
+                   "而", "与", "但", "因", "所", "为", "从", "到", "等",
+                   "一个", "我们", "他们", "你们", "它们", "这个", "那个",
+                   "已经", "可以", "没有", "什么", "自己", "知道", "如果"}
+
+    def _extract_words(text: str) -> set[str]:
+        words: set[str] = set()
+        # ASCII words (3+ chars)
+        for w in re.findall(r"\w{3,}", text):
+            if w.lower() not in stop_words:
+                words.add(w.lower())
+        # CJK bigrams (2 consecutive Chinese chars)
+        cjk_chars = re.findall(r"[\u4e00-\u9fff]", text)
+        for i in range(len(cjk_chars) - 1):
+            bigram = cjk_chars[i] + cjk_chars[i + 1]
+            if bigram not in stop_words:
+                words.add(bigram)
+        return words
+
+    words_a = _extract_words(a.get("fact", a.get("text", "")))
+    words_b = _extract_words(b.get("fact", b.get("text", "")))
+    return len(words_a & words_b)
+
+
+def _cluster_atoms(atoms: list[dict], min_overlap: int = 2) -> list[list[dict]]:
+    """Simple greedy clustering of atoms by keyword overlap."""
+    if not atoms:
+        return []
+    clusters: list[list[dict]] = []
+    remaining = list(atoms)
+    while remaining:
+        seed = remaining.pop(0)
+        cluster = [seed]
+        i = 0
+        while i < len(remaining):
+            if _keyword_overlap(seed, remaining[i]) >= min_overlap:
+                cluster.append(remaining.pop(i))
+            else:
+                i += 1
+        clusters.append(cluster)
+    return clusters
+
+
+# ── DistillationPipeline ──────────────────────────────────────────
+
+class DistillationPipeline:
+    """Automatic memory distillation: L0→L1→L2→L3.
+
+    Phase B of Memory v2 (TencentDB architecture distillation).
+    Works with the existing SharedMemory tier storage.
+
+    Usage:
+        mem = SharedMemory()
+        pipe = DistillationPipeline(mem)
+        result = pipe.auto_distill()  # run full pipeline
+        status = pipe.get_status()    # check what needs processing
+    """
+
+    def __init__(self, memory: SharedMemory):
+        self.mem = memory
+        self.mem._ensure_tier_dirs()
+        self._processed_l0: set[str] = set()   # track processed L0 file paths
+        self._processed_l1_atoms: set[str] = set()  # track processed atom IDs
+
+    # ── L0 → L1: Extract facts from raw conversations ─────────────
+
+    def distill_l0_to_l1(self) -> dict:
+        """Extract atomic facts from all L0 conversation files.
+
+        Processes each L0 .md file, runs heuristic fact extraction,
+        and writes discovered facts to L1 jsonl. Tracks which L0 files
+        have been processed to avoid re-extraction.
+        """
+        l0_dir = TIER_DIRS["l0"]
+        if not l0_dir.exists():
+            return {"success": True, "facts_extracted": 0, "sources_processed": 0,
+                    "message": "L0 directory is empty — nothing to distill"}
+
+        total_facts = 0
+        files_processed = 0
+
+        for md_file in sorted(l0_dir.glob("l0-*.md")):
+            if str(md_file) in self._processed_l0:
+                continue
+
+            try:
+                content = md_file.read_text(encoding="utf-8")
+            except OSError:
+                continue
+
+            # Extract per-entry facts (each entry may have its own context)
+            entries = self.mem._parse_entries(content)
+            for entry in entries:
+                body = entry.get("body", "")
+                author = entry.get("author", "")
+                facts = _extract_facts_from_text(body, source_id=str(md_file.name))
+                for fact in facts:
+                    self.mem.write_to_tier(
+                        tier="l1",
+                        entry=fact["text"],
+                        author=author,
+                        metadata={
+                            "fact_type": fact["type"],
+                            "confidence": fact["confidence"],
+                            "source_l0": str(md_file.name),
+                            "source_author": author,
+                        },
+                    )
+                total_facts += len(facts)
+
+            self._processed_l0.add(str(md_file))
+            files_processed += 1
+
+        return {
+            "success": True,
+            "facts_extracted": total_facts,
+            "sources_processed": files_processed,
+            "message": f"Extracted {total_facts} facts from {files_processed} L0 sources",
+        }
+
+    # ── L1 → L2: Cluster atoms into scenario blocks ────────────────
+
+    def distill_l1_to_l2(self, max_atoms: int = 200) -> dict:
+        """Cluster L1 atoms into L2 scenario blocks.
+
+        Reads recent L1 atoms, clusters them by keyword overlap,
+        and creates one L2 scenario per cluster.
+
+        Trigger: every ~5 sessions worth of atoms → one distillation run.
+        """
+        atoms = self.mem.get_tier_entries("l1", limit=max_atoms)
+        if len(atoms) < 5:
+            return {"success": True, "scenarios_created": 0, "atoms_processed": 0,
+                    "message": "Need at least 5 atoms to create scenarios"}
+
+        # Filter out already-clustered atoms
+        fresh_atoms = [a for a in atoms if a.get("id", "") not in self._processed_l1_atoms]
+        if not fresh_atoms:
+            return {"success": True, "scenarios_created": 0, "atoms_processed": 0,
+                    "message": "All atoms already clustered — nothing to distill"}
+
+        clusters = _cluster_atoms(fresh_atoms, min_overlap=2)
+        scenarios_created = 0
+
+        for cluster in clusters:
+            if len(cluster) < 2:
+                continue  # skip singleton clusters
+
+            # Determine cluster theme from most common fact_type
+            type_counts: collections.Counter = collections.Counter()
+            for a in cluster:
+                ft = a.get("fact_type", "unknown")
+                type_counts[ft] += 1
+            dominant_types = [t for t, _ in type_counts.most_common(2)]
+
+            # Build scenario block
+            scenario_title = f"Cluster: {', '.join(dominant_types)} ({len(cluster)} atoms)"
+            scenario_lines = [f"### {scenario_title}"]
+            scenario_lines.append(f"*Generated: {_make_timestamp()}*")
+            scenario_lines.append(f"*Source atoms: {len(cluster)}*")
+            scenario_lines.append("")
+
+            # Group atoms by type within the cluster
+            by_type: dict[str, list[dict]] = {}
+            for a in cluster:
+                by_type.setdefault(a.get("fact_type", "unknown"), []).append(a)
+
+            for ft, items in sorted(by_type.items()):
+                scenario_lines.append(f"#### {ft.capitalize()} ({len(items)})")
+                for item in items:
+                    text = item.get("fact", item.get("text", ""))
+                    conf = item.get("confidence", 0.5)
+                    scenario_lines.append(f"- [{conf:.0%} conf] {text}")
+                scenario_lines.append("")
+
+            scenario_text = "\n".join(scenario_lines)
+            self.mem.write_to_tier(
+                tier="l2",
+                entry=scenario_text,
+                author="distillation-pipeline",
+                metadata={
+                    "cluster_size": len(cluster),
+                    "dominant_types": dominant_types,
+                    "atom_ids": [a.get("id", "") for a in cluster][:20],
+                },
+            )
+            scenarios_created += 1
+
+            # Mark atoms as processed
+            for a in cluster:
+                a_id = a.get("id", "")
+                if a_id:
+                    self._processed_l1_atoms.add(a_id)
+
+        return {
+            "success": True,
+            "scenarios_created": scenarios_created,
+            "atoms_processed": sum(len(c) for c in clusters),
+            "clusters_found": len(clusters),
+            "message": f"Created {scenarios_created} scenarios from {len(fresh_atoms)} atoms",
+        }
+
+    # ── L2 → L3: Synthesize persona from scenarios ─────────────────
+
+    def distill_l2_to_l3(self) -> dict:
+        """Synthesize L3 Persona from accumulated L2 Scenarios.
+
+        Trigger: every ~50 L2 scenarios → one persona refresh.
+        Aggregates all scenarios into a CEO-facing persona summary.
+        """
+        scenarios = self.mem.get_tier_entries("l2", limit=100)
+        if len(scenarios) < 3:
+            return {"success": True, "persona_updated": False, "scenarios_reviewed": len(scenarios),
+                    "message": "Need at least 3 scenarios to synthesize persona"}
+
+        # Extract all fact_types and their confidence-weighted counts
+        fact_summary: dict[str, list[str]] = {}
+        total_items = 0
+
+        for s in scenarios:
+            body = s.get("body", "")
+            # Parse scenario items (lines starting with "- [X% conf] text")
+            for line in body.split("\n"):
+                m = re.match(r"- \[(\d+)% conf\]\s+(.+)", line.strip())
+                if m:
+                    confidence = int(m.group(1))
+                    text = m.group(2).strip()
+                    # Crude type inference from the section header context
+                    ft = "general"
+                    if "correction" in body[:200].lower():
+                        ft = "correction"
+                    elif "preference" in body[:200].lower():
+                        ft = "preference"
+                    elif "constraint" in body[:200].lower():
+                        ft = "constraint"
+                    elif "strategy" in body[:200].lower() or "decision" in body[:200].lower():
+                        ft = "strategy"
+                    fact_summary.setdefault(ft, []).append(
+                        f"[{confidence}%] {text}"
+                    )
+                    total_items += 1
+
+        if not fact_summary:
+            return {"success": True, "persona_updated": False, "scenarios_reviewed": len(scenarios),
+                    "message": "No extractable facts found in scenarios"}
+
+        # Build persona document
+        persona_lines = [
+            f"# L3 Persona — Synthesized Profile",
+            f"",
+            f"> **Generated**: {_make_timestamp()}",
+            f"> **Sources**: {len(scenarios)} L2 scenarios, {total_items} fact items",
+            f"> **Method**: Automatic distillation pipeline (Phase B)",
+            f"",
+            f"## Profile Summary",
+            f"",
+        ]
+
+        # Corrections & Constraints (highest signal)
+        if "correction" in fact_summary or "constraint" in fact_summary:
+            persona_lines.append("### 🔴 Corrections & Constraints (Highest Priority)")
+            for ft in ("correction", "constraint"):
+                if ft in fact_summary:
+                    for item in fact_summary[ft][:10]:
+                        persona_lines.append(f"- {item}")
+            persona_lines.append("")
+
+        # Preferences
+        if "preference" in fact_summary:
+            persona_lines.append("### 🟡 Preferences & Style")
+            for item in fact_summary["preference"][:10]:
+                persona_lines.append(f"- {item}")
+            persona_lines.append("")
+
+        # Strategy & Decisions
+        if "strategy" in fact_summary:
+            persona_lines.append("### 🟢 Strategy & Decisions")
+            for item in fact_summary["strategy"][:10]:
+                persona_lines.append(f"- {item}")
+            persona_lines.append("")
+
+        # General
+        if "general" in fact_summary:
+            persona_lines.append("### ⚪ General Facts")
+            for item in fact_summary["general"][:5]:
+                persona_lines.append(f"- {item}")
+            persona_lines.append("")
+
+        persona_lines.append("---")
+        persona_lines.append("*Generated by DistillationPipeline — review and refine manually.*")
+
+        persona_text = "\n".join(persona_lines)
+        self.mem.write_to_tier(
+            tier="l3",
+            entry=persona_text,
+            author="distillation-pipeline",
+            metadata={
+                "source_scenarios": len(scenarios),
+                "total_facts": total_items,
+                "fact_categories": list(fact_summary.keys()),
+            },
+        )
+
+        return {
+            "success": True,
+            "persona_updated": True,
+            "scenarios_reviewed": len(scenarios),
+            "facts_aggregated": total_items,
+            "categories": list(fact_summary.keys()),
+            "message": f"Synthesized persona from {len(scenarios)} scenarios ({total_items} facts)",
+        }
+
+    # ── Full pipeline ──────────────────────────────────────────────
+
+    def auto_distill(self) -> dict:
+        """Run the full distillation pipeline: L0→L1→L2→L3.
+
+        Safe to call repeatedly — tracks what's been processed.
+        Returns a summary of all three stages.
+        """
+        results: dict[str, dict] = {}
+
+        # Stage 1: L0 → L1
+        results["l0_to_l1"] = self.distill_l0_to_l1()
+
+        # Stage 2: L1 → L2 (if enough new atoms accumulated)
+        results["l1_to_l2"] = self.distill_l1_to_l2()
+
+        # Stage 3: L2 → L3 (periodic persona refresh)
+        l2_count = len(self.mem.get_tier_entries("l2", limit=1000))
+        if l2_count >= 3:
+            results["l2_to_l3"] = self.distill_l2_to_l3()
+        else:
+            results["l2_to_l3"] = {
+                "success": True, "persona_updated": False, "scenarios_reviewed": l2_count,
+                "message": f"Insufficient L2 scenarios ({l2_count}) for persona synthesis",
+            }
+
+        # Summary
+        total_facts = results["l0_to_l1"].get("facts_extracted", 0)
+        total_scenarios = results["l1_to_l2"].get("scenarios_created", 0)
+        persona_updated = results["l2_to_l3"].get("persona_updated", False)
+
+        return {
+            "success": True,
+            "stages": {k: v.get("message", "") for k, v in results.items()},
+            "summary": {
+                "facts_extracted": total_facts,
+                "scenarios_created": total_scenarios,
+                "persona_updated": persona_updated,
+            },
+            "details": results,
+        }
+
+    def get_status(self) -> dict:
+        """Inspect distillation readiness — what can be processed next."""
+        self.mem._ensure_tier_dirs()
+
+        l0_count = len(list(TIER_DIRS["l0"].glob("l0-*.md"))) if TIER_DIRS["l0"].exists() else 0
+        l1_count = len(self.mem.get_tier_entries("l1", limit=10000))
+        l2_count = len(self.mem.get_tier_entries("l2", limit=10000))
+        l3_count = len(self.mem.get_tier_entries("l3", limit=10000))
+
+        unprocessed_l0 = max(0, l0_count - len(self._processed_l0))
+
+        return {
+            "tiers": {
+                "l0": {"files": l0_count, "unprocessed": unprocessed_l0},
+                "l1": {"atoms": l1_count, "unclustered": max(0, l1_count - len(self._processed_l1_atoms))},
+                "l2": {"scenarios": l2_count},
+                "l3": {"personas": l3_count},
+            },
+            "ready_to_distill": {
+                "l0_to_l1": unprocessed_l0 > 0,
+                "l1_to_l2": l1_count >= 5 and (l1_count - len(self._processed_l1_atoms)) > 0,
+                "l2_to_l3": l2_count >= 3,
+            },
+        }
+
+# ---------------------------------------------------------------------------
 # Seed the shared memory
 # ---------------------------------------------------------------------------
 def seed_shared_memory(memory_file: Optional[Path] = None) -> None:
@@ -725,6 +1185,33 @@ def cmd_gate_mem_export(mem: SharedMemory) -> None:
     print(json.dumps(export, ensure_ascii=False, indent=2))
 
 
+def cmd_distill(mem: SharedMemory, stage: Optional[str] = None) -> None:
+    """Run the distillation pipeline (L0→L1→L2→L3)."""
+    pipe = DistillationPipeline(mem)
+
+    if stage == "status":
+        status = pipe.get_status()
+        print(json.dumps(status, ensure_ascii=False, indent=2))
+        return
+
+    print("🧪 Running distillation pipeline...\n")
+    result = pipe.auto_distill()
+
+    summary = result["summary"]
+    print(f"  Facts extracted:    {summary['facts_extracted']}")
+    print(f"  Scenarios created:  {summary['scenarios_created']}")
+    print(f"  Persona updated:    {'✅' if summary['persona_updated'] else '⏭️  (insufficient scenarios)'}")
+    print()
+
+    # Print stage details
+    for stage_name, msg in result["stages"].items():
+        print(f"  [{stage_name}] {msg}")
+
+    if summary["facts_extracted"] == 0 and summary["scenarios_created"] == 0:
+        print("\n💡 No new content to distill. Add L0 conversations first.")
+        print("   echo '## [2026-05-15 10:00] user\\ntest content' >> memory/tiers/l0-conversations/l0-2026-05-15.md")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Hermes Team Shared Memory — correct once, all agents learn",
@@ -739,6 +1226,8 @@ Examples:
   hermes-memory.py context
   hermes-memory.py namespaces
   hermes-memory.py gate-mem-export
+  hermes-memory.py distill
+  hermes-memory.py distill --status
 """,
     )
     sub = parser.add_subparsers(dest="command", help="Command")
@@ -762,6 +1251,9 @@ Examples:
     sub.add_parser("namespaces", help="List available memory namespaces")
     sub.add_parser("gate-mem-export", help="Export in GateMem-compatible JSON format")
     sub.add_parser("seed", help="Seed the shared memory with example entries")
+
+    p_distill = sub.add_parser("distill", help="Run the memory distillation pipeline (L0→L1→L2→L3)")
+    p_distill.add_argument("--status", action="store_true", help="Show distillation readiness")
 
     args = parser.parse_args()
 
@@ -797,6 +1289,8 @@ Examples:
         cmd_gate_mem_export(mem)
     elif args.command == "seed":
         seed_shared_memory()
+    elif args.command == "distill":
+        cmd_distill(mem, stage="status" if args.status else None)
     else:
         parser.print_help()
         sys.exit(1)

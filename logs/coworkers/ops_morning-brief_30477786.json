@@ -1,0 +1,17 @@
+{
+  "run_id": "30477786",
+  "coworker_id": "ops/morning-brief",
+  "run_name": "晨报员",
+  "trigger_reason": "manual",
+  "started_at": "2026-05-15T10:11:49.063561+00:00",
+  "completed_at": "2026-05-15T10:11:49.063625+00:00",
+  "duration_ms": 0,
+  "results": [
+    {
+      "skill_id": "monitoring/cronalytics",
+      "status": "error",
+      "error": "Skill file not found"
+    }
+  ],
+  "receipts": []
+}

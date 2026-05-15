@@ -1,0 +1,19 @@
+{
+  "run_id": "17b4eaa1",
+  "coworker_id": "ops/morning-brief",
+  "run_name": "晨报员",
+  "trigger_reason": "api",
+  "started_at": "2026-05-15T10:11:48.982677+00:00",
+  "completed_at": "2026-05-15T10:11:49.068117+00:00",
+  "duration_ms": 85,
+  "exit_code": 0,
+  "stdout": "🚀 Running coworker: ops/morning-brief\n   Start: 2026-05-15T10:11:49.063331+00:00\n\n   Run ID: 30477786\n   Duration: 0ms\n   Skills executed: 1\n\n   ✗ monitoring/cronalytics: error\n\n   Receipts: 0 generated\n",
+  "stderr": "",
+  "results": [
+    {
+      "skill_id": "monitoring/cronalytics",
+      "status": "completed",
+      "note": "Spawned via dashboard API"
+    }
+  ]
+}
